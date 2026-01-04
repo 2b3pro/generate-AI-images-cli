@@ -29,3 +29,4 @@ coverage/
 # Generated images (don't commit test outputs)
 *.generated.png
 *.generated.jpg
+docs/ref-*

@@ -1,20 +1,14 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, Part } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { BaseProvider } from './base';
-import type { GenerateOptions, GenerationResult, Model, AspectRatio, GoogleResolution } from '../types';
+import type { GenerateOptions, GenerationResult, Model, AspectRatio } from '../types';
 import { DEFAULT_OPTIONS } from '../types';
 import { readImageAsBase64, getMimeType } from '../utils/download';
-
-const RESOLUTION_TO_PIXELS: Record<GoogleResolution, number> = {
-  '1K': 1024,
-  '2K': 2048,
-  '4K': 4096,
-};
 
 export class GoogleProvider extends BaseProvider {
   name = 'Google';
   models: Model[] = ['imagen-3', 'imagen-3-fast', 'imagen-4', 'nano-banana', 'nano-banana-pro'];
 
-  private client: GoogleGenerativeAI;
+  private client: GoogleGenAI;
 
   constructor() {
     super();
@@ -22,7 +16,7 @@ export class GoogleProvider extends BaseProvider {
     if (!apiKey) {
       throw new Error('GOOGLE_API_KEY or GEMINI_API_KEY environment variable is required');
     }
-    this.client = new GoogleGenerativeAI(apiKey);
+    this.client = new GoogleGenAI({ apiKey });
   }
 
   async generate(options: GenerateOptions): Promise<GenerationResult> {
@@ -32,66 +26,45 @@ export class GoogleProvider extends BaseProvider {
       const aspectRatio = options.aspectRatio || DEFAULT_OPTIONS.aspectRatio;
       const outputPath = options.output || DEFAULT_OPTIONS.output;
 
-      // Determine resolution based on size parameter
-      let resolution: GoogleResolution = '2K';
-      if (options.size) {
-        if (options.size.toUpperCase() in RESOLUTION_TO_PIXELS) {
-          resolution = options.size.toUpperCase() as GoogleResolution;
-        }
-      }
-
       // Map model names to Gemini API model identifiers
       const modelMap: Record<string, string> = {
         'imagen-3': 'imagen-3.0-generate-002',
         'imagen-3-fast': 'imagen-3.0-fast-generate-001',
-        'imagen-4': 'imagen-4.0-generate-preview-05-20',
-        'nano-banana': 'gemini-2.0-flash-exp', // Gemini image generation
-        'nano-banana-pro': 'gemini-2.0-flash-exp', // Gemini image generation (pro features)
+        'imagen-4': 'gemini-3-pro-image-preview',
+        'nano-banana': 'gemini-2.5-flash-image',
+        'nano-banana-pro': 'gemini-3-pro-image-preview',
       };
-      const modelName = modelMap[options.model] || 'gemini-2.0-flash-exp';
+      const modelName = modelMap[options.model] || 'gemini-2.5-flash-image';
 
-      // Create the model for image generation with config cast to any for Imagen support
-      const model = this.client.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          responseMimeType: 'image/png',
-        } as Record<string, unknown>,
-        safetySettings: [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-        ],
-      });
+      // Determine image size based on model and size option
+      let imageSize: string | undefined;
+      if (options.size) {
+        const sizeUpper = options.size.toUpperCase();
+        if (['1K', '2K', '4K'].includes(sizeUpper)) {
+          imageSize = sizeUpper;
+        }
+      }
 
-      // Build the prompt with aspect ratio hint
+      // Build the prompt
       let enhancedPrompt = options.prompt;
-
-      // Add negative prompt if provided
       if (options.negativePrompt) {
         enhancedPrompt += ` Avoid: ${options.negativePrompt}`;
       }
 
-      // Build content parts - supports multiple reference images
-      const parts: Part[] = [];
+      // Build contents - can be string or array with images
+      let contents: string | Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
 
-      // Add reference images first (for style/composition guidance)
       if (options.referenceImages?.length) {
+        // Multi-part content with reference images
+        const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+
+        // Add text prompt first
+        parts.push({ text: enhancedPrompt });
+
+        // Add reference images
         for (const imagePath of options.referenceImages) {
           const base64 = await readImageAsBase64(imagePath);
-          const mimeType = getMimeType(imagePath) as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+          const mimeType = getMimeType(imagePath);
           parts.push({
             inlineData: {
               mimeType,
@@ -99,31 +72,49 @@ export class GoogleProvider extends BaseProvider {
             },
           });
         }
+        contents = parts;
+      } else {
+        // Simple text prompt
+        contents = enhancedPrompt;
       }
 
-      // Add text prompt
-      parts.push({ text: enhancedPrompt });
+      // Generate with config
+      const response = await this.client.models.generateContent({
+        model: modelName,
+        contents,
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: {
+            aspectRatio: aspectRatio,
+            ...(imageSize && { imageSize }),
+          },
+        },
+      });
 
-      const result = await model.generateContent(parts);
-
-      const response = result.response;
+      // Find and save the image from response
       const candidate = response.candidates?.[0];
-
-      if (!candidate || !candidate.content?.parts?.[0]) {
+      if (!candidate?.content?.parts?.length) {
         return {
           success: false,
-          error: 'No image generated - check if the prompt was blocked',
+          error: 'No content generated - check if the prompt was blocked',
         };
       }
 
-      const part = candidate.content.parts[0] as { inlineData?: { data?: string } };
+      // Find the image part
+      const imagePart = candidate.content.parts.find(
+        (p: { inlineData?: { data?: string } }) => p.inlineData?.data
+      );
 
-      if (part.inlineData?.data) {
-        await this.saveBase64Image(part.inlineData.data, outputPath);
+      if (imagePart?.inlineData?.data) {
+        await this.saveBase64Image(imagePart.inlineData.data, outputPath);
       } else {
+        // Check if there's text explaining why no image
+        const textPart = candidate.content.parts.find(
+          (p: { text?: string }) => p.text
+        );
         return {
           success: false,
-          error: 'Unexpected response format from Google API',
+          error: textPart?.text || 'No image in response - model may have declined',
         };
       }
 
@@ -139,8 +130,7 @@ export class GoogleProvider extends BaseProvider {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 
-      // Check for common Google API errors
-      if (errorMessage.includes('SAFETY')) {
+      if (errorMessage.includes('SAFETY') || errorMessage.includes('blocked')) {
         return {
           success: false,
           error: 'Content blocked by safety filters. Try rephrasing your prompt.',

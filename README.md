@@ -11,10 +11,18 @@ bun install
 bun run build
 ```
 
-To install globally:
+To install globally as `generate`:
 ```bash
 bun link
 ```
+
+To use a different command name, edit `bin` in `package.json`:
+```json
+"bin": {
+  "your-command-name": "./dist/cli.js"
+}
+```
+Then run `bun link` again.
 
 ## Usage
 
