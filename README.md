@@ -1,5 +1,7 @@
 # generate-AI-images-cli
 
+![Cover](./assets/cover.png)
+
 AI Image Generation CLI — generate images using Gemini, OpenAI, Flux, and more from your terminal.
 
 ## Installation
