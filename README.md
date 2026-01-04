@@ -1,4 +1,4 @@
-# img-gen-cli
+# generate-AI-images-cli
 
 AI Image Generation CLI — generate images using Gemini, OpenAI, Flux, and more from your terminal.
 
