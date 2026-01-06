@@ -1,6 +1,6 @@
 {
   "name": "img-gen-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AI Image Generation CLI - Generate images using Flux, DALL-E, Imagen, and more",
   "type": "module",
   "bin": {

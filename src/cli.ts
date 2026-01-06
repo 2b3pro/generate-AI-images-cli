@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name('generate')
   .description('AI Image Generation CLI - Generate images using Gemini, OpenAI, Flux, and more')
-  .version('1.0.0');
+  .version('1.0.1');
 
 // Handle --list-models before requiring other options
 if (process.argv.includes('--list-models')) {
@@ -37,8 +37,9 @@ if (process.argv.includes('--list-models')) {
 }
 
 program
+  .argument('[prompt...]', 'Image generation prompt')
   .option('-m, --model <model>', 'Model to use: nano-banana-pro (default), nano-banana, imagen-4, imagen-3, imagen-3-fast, flux, flux-schnell, flux-pro, gpt-image-1, gpt-image-1.5', DEFAULT_OPTIONS.model)
-  .requiredOption('-p, --prompt <text>', 'Image generation prompt (quote if contains spaces)')
+  .option('-p, --prompt <text>', 'Image generation prompt (alternative to positional argument)')
   .addOption(
     new Option('-s, --size <size>', 'Image size/resolution')
       .choices(['1K', '2K', '4K', '1024x1024', '1024x1792', '1792x1024', '1536x1536', '1024x1536', '1536x1024'])
@@ -75,10 +76,36 @@ program
   )
   .option('--num-images <number>', 'Number of images to generate', parseInt, DEFAULT_OPTIONS.numImages)
   .option('--list-models', 'List available models and exit')
-  .action(async (opts) => {
+  .action(async (promptArgs: string[], opts) => {
+    // Read stdin first if available (can be combined with CLI args)
+    let stdinPrompt = '';
+    if (!process.stdin.isTTY) {
+      try {
+        const chunks = [];
+        // @ts-ignore: Bun specific or Node compat
+        for await (const chunk of process.stdin) {
+          chunks.push(chunk);
+        }
+        stdinPrompt = Buffer.concat(chunks).toString().trim();
+      } catch (e) {
+        // Ignore stdin error
+      }
+    }
+
+    // CLI prompt from positional args or -p flag
+    const cliPrompt = promptArgs.length > 0 ? promptArgs.join(' ') : (opts.prompt || '');
+
+    // Combine: stdin + CLI (CLI refines/appends to stdin)
+    const prompt = [stdinPrompt, cliPrompt].filter(Boolean).join('\n\n');
+
+    if (!prompt) {
+      console.error(chalk.red('Error: Prompt is required. Usage: generate "your prompt" or via stdin.'));
+      process.exit(1);
+    }
+
     const options: GenerateOptions = {
       model: opts.model as Model,
-      prompt: opts.prompt,
+      prompt: prompt,
       size: opts.size,
       aspectRatio: opts.aspectRatio as AspectRatio,
       output: opts.output,
@@ -190,28 +217,28 @@ program.addHelpText('after', `
 
 ${chalk.bold('Examples:')}
   ${chalk.dim('# Generate with default (nano-banana-pro)')}
-  $ generate -p "A serene mountain landscape at sunset"
+  $ generate "A serene mountain landscape at sunset"
 
   ${chalk.dim('# Generate with OpenAI in HD quality')}
-  $ generate -m gpt-image-1 -p "Abstract digital art" -q hd
+  $ generate -m gpt-image-1 "Abstract digital art" -q hd
 
   ${chalk.dim('# Generate with transparent background')}
-  $ generate -m gpt-image-1 -p "A cute robot mascot" --transparent
+  $ generate -m gpt-image-1 "A cute robot mascot" --transparent
 
   ${chalk.dim('# Edit an existing image (gpt-image-1.5)')}
-  $ generate -m gpt-image-1.5 -p "Add a hat to the person" -r ./photo.png
+  $ generate -m gpt-image-1.5 "Add a hat to the person" -r ./photo.png
 
   ${chalk.dim('# Generate with specific aspect ratio')}
-  $ generate -m imagen-4 -p "Cinematic scene" -a 21:9
+  $ generate -m imagen-4 "Cinematic scene" -a 21:9
 
   ${chalk.dim('# Generate with reference image')}
-  $ generate -m flux -p "Same style as reference" -r ./reference.png
+  $ generate -m flux "Same style as reference" -r ./reference.png
 
   ${chalk.dim('# Generate with multiple reference images (Gemini)')}
-  $ generate -p "Blend these styles" -r style1.png -r style2.png
+  $ generate "Blend these styles" -r style1.png -r style2.png
 
   ${chalk.dim('# Generate 5 variations')}
-  $ generate -p "Abstract art" --variations 5 -o ~/Downloads/abstract.png
+  $ generate "Abstract art" --variations 5 -o ~/Downloads/abstract.png
 
 ${chalk.bold('Environment Variables:')}
   GOOGLE_API_KEY         Required for Gemini/Imagen models

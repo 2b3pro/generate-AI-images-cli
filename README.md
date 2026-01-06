@@ -28,13 +28,15 @@ Then run `bun link` again.
 
 ```bash
 generate -p "A serene mountain landscape at sunset"
+# OR via stdin
+echo "A serene mountain landscape at sunset" | generate
 ```
 
 ### Options
 
 | Flag | Description |
 |------|-------------|
-| `-p, --prompt <text>` | Image generation prompt (required) |
+| `-p, --prompt <text>` | Image generation prompt (required if not passed via stdin) |
 | `-m, --model <model>` | Model to use (default: `nano-banana-pro`) |
 | `-a, --aspect-ratio <ratio>` | Aspect ratio: `1:1`, `16:9`, `9:16`, `4:3`, etc. |
 | `-s, --size <size>` | Image size: `1K`, `2K`, `4K`, or specific dimensions |
