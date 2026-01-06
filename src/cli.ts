@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name('generate')
   .description('AI Image Generation CLI - Generate images using Gemini, OpenAI, Flux, and more')
-  .version('1.0.0');
+  .version('1.0.1');
 
 // Handle --list-models before requiring other options
 if (process.argv.includes('--list-models')) {
@@ -38,7 +38,7 @@ if (process.argv.includes('--list-models')) {
 
 program
   .option('-m, --model <model>', 'Model to use: nano-banana-pro (default), nano-banana, imagen-4, imagen-3, imagen-3-fast, flux, flux-schnell, flux-pro, gpt-image-1, gpt-image-1.5', DEFAULT_OPTIONS.model)
-  .requiredOption('-p, --prompt <text>', 'Image generation prompt (quote if contains spaces)')
+  .option('-p, --prompt <text>', 'Image generation prompt (quote if contains spaces)')
   .addOption(
     new Option('-s, --size <size>', 'Image size/resolution')
       .choices(['1K', '2K', '4K', '1024x1024', '1024x1792', '1792x1024', '1536x1536', '1024x1536', '1536x1024'])
@@ -76,9 +76,29 @@ program
   .option('--num-images <number>', 'Number of images to generate', parseInt, DEFAULT_OPTIONS.numImages)
   .option('--list-models', 'List available models and exit')
   .action(async (opts) => {
+    // Handle stdin for prompt if not provided via flag
+    let prompt = opts.prompt;
+    if (!prompt && !process.stdin.isTTY) {
+      try {
+        const chunks = [];
+        // @ts-ignore: Bun specific or Node compat
+        for await (const chunk of process.stdin) {
+          chunks.push(chunk);
+        }
+        prompt = Buffer.concat(chunks).toString().trim();
+      } catch (e) {
+        // Ignore stdin error
+      }
+    }
+
+    if (!prompt) {
+      console.error(chalk.red('Error: Prompt is required. Provide it via -p/--prompt or stdin.'));
+      process.exit(1);
+    }
+
     const options: GenerateOptions = {
       model: opts.model as Model,
-      prompt: opts.prompt,
+      prompt: prompt,
       size: opts.size,
       aspectRatio: opts.aspectRatio as AspectRatio,
       output: opts.output,
