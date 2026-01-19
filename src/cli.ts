@@ -95,8 +95,13 @@ program
     // CLI prompt from positional args or -p flag
     const cliPrompt = promptArgs.length > 0 ? promptArgs.join(' ') : (opts.prompt || '');
 
-    // Combine: stdin + CLI (CLI refines/appends to stdin)
-    const prompt = [stdinPrompt, cliPrompt].filter(Boolean).join('\n\n');
+    // Combine: stdin + CLI with XML-like structure for clarity
+    let prompt: string;
+    if (stdinPrompt && cliPrompt) {
+      prompt = `<image_prompt>\n${stdinPrompt}\n</image_prompt>\n\n<additional_guidance>\n${cliPrompt}\n</additional_guidance>`;
+    } else {
+      prompt = stdinPrompt || cliPrompt;
+    }
 
     if (!prompt) {
       console.error(chalk.red('Error: Prompt is required. Usage: generate "your prompt" or via stdin.'));
@@ -239,6 +244,15 @@ ${chalk.bold('Examples:')}
 
   ${chalk.dim('# Generate 5 variations')}
   $ generate "Abstract art" --variations 5 -o ~/Downloads/abstract.png
+
+${chalk.bold('Stdin Support:')}
+  ${chalk.dim('# Pipe prompt from file or other tools')}
+  $ cat prompt.txt | generate
+  $ claude "describe a scene" | generate
+
+  ${chalk.dim('# Combine stdin with CLI args (stdin + refinement)')}
+  $ cat base-prompt.txt | generate "make it cyberpunk"
+  $ echo "A dragon" | generate "photorealistic, 8k, cinematic lighting"
 
 ${chalk.bold('Environment Variables:')}
   GOOGLE_API_KEY         Required for Gemini/Imagen models
