@@ -50,7 +50,7 @@ program
       .default(DEFAULT_OPTIONS.aspectRatio)
   )
   .option('-o, --output <path>', 'Output file path', DEFAULT_OPTIONS.output)
-  .option('-r, --reference-image <path...>', 'Reference image(s) for style/composition (repeatable)')
+  .option('-r, --reference <path...>', 'Reference image(s) for style/composition (repeatable)')
   .option('--transparent', 'Enable transparent background (where supported)')
   .option('--remove-bg', 'Remove background after generation using remove.bg API')
   .option('--add-bg <hex>', 'Add background color to transparent image (e.g., "#EAE9DF")')
@@ -114,7 +114,7 @@ program
       size: opts.size,
       aspectRatio: opts.aspectRatio as AspectRatio,
       output: opts.output,
-      referenceImages: opts.referenceImage, // Commander collects into array
+      referenceImages: opts.reference, // Commander collects into array
       transparent: opts.transparent,
       removeBg: opts.removeBg,
       addBg: opts.addBg,
@@ -237,9 +237,9 @@ ${chalk.bold('Examples:')}
   $ generate -m imagen-4 "Cinematic scene" -a 21:9
 
   ${chalk.dim('# Generate with reference image')}
-  $ generate -m flux "Same style as reference" -r ./reference.png
+  $ generate -m flux "Same style as reference" --reference ./reference.png
 
-  ${chalk.dim('# Generate with multiple reference images (Gemini)')}
+  ${chalk.dim('# Generate with multiple references (Gemini)')}
   $ generate "Blend these styles" -r style1.png -r style2.png
 
   ${chalk.dim('# Generate 5 variations')}
