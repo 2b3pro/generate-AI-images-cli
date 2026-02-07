@@ -1,25 +1,142 @@
 import { GoogleGenAI } from '@google/genai';
+import { spawn } from 'child_process';
+import path from 'path';
 import { BaseProvider } from './base';
 import type { GenerateOptions, GenerationResult, Model, AspectRatio } from '../types';
 import { DEFAULT_OPTIONS } from '../types';
 import { readImageAsBase64, getMimeType } from '../utils/download';
 
+const GEMINI_CLI = '/opt/homebrew/bin/gemini';
+
 export class GoogleProvider extends BaseProvider {
   name = 'Google';
   models: Model[] = ['imagen-3', 'imagen-3-fast', 'imagen-4', 'nano-banana', 'nano-banana-pro'];
 
-  private client: GoogleGenAI;
+  private client: GoogleGenAI | null = null;
 
   constructor() {
     super();
     const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('GOOGLE_API_KEY or GEMINI_API_KEY environment variable is required');
+    if (apiKey) {
+      this.client = new GoogleGenAI({ apiKey });
     }
-    this.client = new GoogleGenAI({ apiKey });
+  }
+
+  private isNanoBanana(model: Model): boolean {
+    return model === 'nano-banana' || model === 'nano-banana-pro';
+  }
+
+  private runGeminiCli(prompt: string): Promise<{ stdout: string; exitCode: number }> {
+    return new Promise((resolve, reject) => {
+      const proc = spawn(GEMINI_CLI, [
+        '--extensions', 'nanobanana',
+        '--yolo',
+        '--prompt', prompt,
+      ]);
+
+      let stdout = '';
+      let stderr = '';
+      proc.stdout.on('data', (data) => { stdout += data.toString(); });
+      proc.stderr.on('data', (data) => { stderr += data.toString(); });
+      proc.on('close', (code) => {
+        resolve({ stdout: stdout + stderr, exitCode: code ?? 1 });
+      });
+      proc.on('error', (err) => reject(err));
+    });
+  }
+
+  private extractImagePath(output: string): string | null {
+    // Match absolute paths ending with image extensions
+    const matches = output.match(/\/[^\s`'"*?]+\.(?:png|jpg|jpeg|webp)/g);
+    return matches?.length ? matches[matches.length - 1] : null;
+  }
+
+  private async generateViaCli(options: GenerateOptions): Promise<GenerationResult> {
+    const startTime = Date.now();
+
+    try {
+      const aspectRatio = (options.aspectRatio || DEFAULT_OPTIONS.aspectRatio).replace(':', 'x');
+      const outputPath = options.output || DEFAULT_OPTIONS.output;
+      const outputDir = path.dirname(outputPath);
+
+      // Build prompt with options appended as prose
+      let fullPrompt = options.prompt;
+      if (options.negativePrompt) {
+        fullPrompt += ` Avoid: ${options.negativePrompt}`;
+      }
+
+      // Append all options as text directives
+      const opts: string[] = [];
+      opts.push(`aspect_ratio: ${aspectRatio}`);
+      if (options.referenceImages?.length) {
+        for (const ref of options.referenceImages) {
+          opts.push(`Reference image path: ${ref}`);
+        }
+      }
+      if (options.size) opts.push(`Resolution: ${options.size}`);
+      if (options.transparent) opts.push(`Use transparent background`);
+      if (options.seed) opts.push(`Random seed: ${options.seed}`);
+      if (options.style && options.style !== DEFAULT_OPTIONS.style) opts.push(`Style: ${options.style}`);
+      if (options.quality && options.quality !== DEFAULT_OPTIONS.quality) opts.push(`Quality: ${options.quality}`);
+      if (options.numImages && options.numImages > 1) opts.push(`Generate ${options.numImages} images`);
+      if (options.steps && options.steps !== DEFAULT_OPTIONS.steps) opts.push(`Inference steps: ${options.steps}`);
+      if (options.guidance && options.guidance !== DEFAULT_OPTIONS.guidance) opts.push(`Guidance scale: ${options.guidance}`);
+      opts.push(`Output destination: ${outputDir}`);
+
+      fullPrompt += ' —' + opts.join(' —');
+
+      const { stdout, exitCode } = await this.runGeminiCli(fullPrompt);
+
+      if (exitCode !== 0) {
+        return {
+          success: false,
+          error: `Gemini CLI exited with code ${exitCode}:\n${stdout}`,
+        };
+      }
+
+      const extractedPath = this.extractImagePath(stdout);
+      if (!extractedPath) {
+        return {
+          success: false,
+          error: `Could not extract output path from Gemini CLI output:\n${stdout}`,
+        };
+      }
+
+      return {
+        success: true,
+        outputPath: extractedPath,
+        metadata: {
+          model: options.model,
+          prompt: options.prompt,
+          duration: Date.now() - startTime,
+        },
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      if (msg.includes('ENOENT')) {
+        return {
+          success: false,
+          error: `Gemini CLI not found at ${GEMINI_CLI}. Install it or use --api flag.`,
+        };
+      }
+      return { success: false, error: msg };
+    }
   }
 
   async generate(options: GenerateOptions): Promise<GenerationResult> {
+    // Nano-banana models default to CLI, use API only with --api flag
+    if (this.isNanoBanana(options.model) && !options.useApi) {
+      return this.generateViaCli(options);
+    }
+
+    // API path — require API key
+    if (!this.client) {
+      return {
+        success: false,
+        error: 'GOOGLE_API_KEY or GEMINI_API_KEY environment variable is required. For nanobanana models, omit --api to use Gemini CLI instead.',
+      };
+    }
+
     const startTime = Date.now();
 
     try {

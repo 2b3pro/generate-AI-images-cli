@@ -40,6 +40,7 @@ export interface GenerateOptions {
   quality?: 'standard' | 'hd';
   style?: 'vivid' | 'natural';
   numImages?: number;
+  useApi?: boolean;
 }
 
 export interface GenerationResult {

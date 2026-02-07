@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name('generate')
   .description('AI Image Generation CLI - Generate images using Gemini, OpenAI, Flux, and more')
-  .version('1.0.1');
+  .version('1.1.0');
 
 // Handle --list-models before requiring other options
 if (process.argv.includes('--list-models')) {
@@ -75,6 +75,7 @@ program
       .default(DEFAULT_OPTIONS.style)
   )
   .option('--num-images <number>', 'Number of images to generate', parseInt, DEFAULT_OPTIONS.numImages)
+  .option('--api', 'Use Gemini API instead of CLI for nanobanana models')
   .option('--list-models', 'List available models and exit')
   .action(async (promptArgs: string[], opts) => {
     // Read stdin first if available (can be combined with CLI args)
@@ -127,6 +128,7 @@ program
       quality: opts.quality,
       style: opts.style,
       numImages: opts.numImages,
+      useApi: opts.api,
     };
 
     const variationCount = options.variations || 1;
