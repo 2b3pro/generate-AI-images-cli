@@ -10,6 +10,7 @@ export type Model =
   | 'imagen-3-fast'
   | 'imagen-4'
   | 'nano-banana'
+  | 'nano-banana-2'
   | 'nano-banana-pro';
 
 export type AspectRatio =
@@ -71,6 +72,7 @@ export const MODEL_TO_PROVIDER: Record<Model, Provider> = {
   'imagen-3-fast': 'google',
   'imagen-4': 'google',
   'nano-banana': 'google',
+  'nano-banana-2': 'google',
   'nano-banana-pro': 'google',
 };
 
@@ -88,7 +90,7 @@ export const ASPECT_RATIO_TO_DIMENSIONS: Record<AspectRatio, { width: number; he
 };
 
 export const DEFAULT_OPTIONS = {
-  model: 'nano-banana-pro' as Model,
+  model: 'nano-banana-2' as Model,
   aspectRatio: '16:9' as AspectRatio,
   output: '/tmp/generated-image.png',
   quality: 'standard' as const,

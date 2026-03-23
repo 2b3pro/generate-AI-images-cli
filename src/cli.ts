@@ -38,7 +38,7 @@ if (process.argv.includes('--list-models')) {
 
 program
   .argument('[prompt...]', 'Image generation prompt')
-  .option('-m, --model <model>', 'Model to use: nano-banana-pro (default), nano-banana, imagen-4, imagen-3, imagen-3-fast, flux, flux-schnell, flux-pro, gpt-image-1, gpt-image-1.5', DEFAULT_OPTIONS.model)
+  .option('-m, --model <model>', 'Model to use: nano-banana-2 (default), nano-banana-pro, nano-banana, imagen-4, imagen-3, imagen-3-fast, flux, flux-schnell, flux-pro, gpt-image-1, gpt-image-1.5', DEFAULT_OPTIONS.model)
   .option('-p, --prompt <text>', 'Image generation prompt (alternative to positional argument)')
   .addOption(
     new Option('-s, --size <size>', 'Image size/resolution')
@@ -223,7 +223,7 @@ program
 program.addHelpText('after', `
 
 ${chalk.bold('Examples:')}
-  ${chalk.dim('# Generate with default (nano-banana-pro)')}
+  ${chalk.dim('# Generate with default (nano-banana-2)')}
   $ generate "A serene mountain landscape at sunset"
 
   ${chalk.dim('# Generate with OpenAI in HD quality')}

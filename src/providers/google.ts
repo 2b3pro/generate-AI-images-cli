@@ -10,7 +10,7 @@ const GEMINI_CLI = '/opt/homebrew/bin/gemini';
 
 export class GoogleProvider extends BaseProvider {
   name = 'Google';
-  models: Model[] = ['imagen-3', 'imagen-3-fast', 'imagen-4', 'nano-banana', 'nano-banana-pro'];
+  models: Model[] = ['imagen-3', 'imagen-3-fast', 'imagen-4', 'nano-banana', 'nano-banana-2', 'nano-banana-pro'];
 
   private client: GoogleGenAI | null = null;
 
@@ -23,7 +23,7 @@ export class GoogleProvider extends BaseProvider {
   }
 
   private isNanoBanana(model: Model): boolean {
-    return model === 'nano-banana' || model === 'nano-banana-pro';
+    return model === 'nano-banana' || model === 'nano-banana-2' || model === 'nano-banana-pro';
   }
 
   private runGeminiCli(prompt: string): Promise<{ stdout: string; exitCode: number }> {
@@ -149,9 +149,10 @@ export class GoogleProvider extends BaseProvider {
         'imagen-3-fast': 'imagen-3.0-fast-generate-001',
         'imagen-4': 'gemini-3-pro-image-preview',
         'nano-banana': 'gemini-2.5-flash-image',
+        'nano-banana-2': 'gemini-3.1-flash-image-preview',
         'nano-banana-pro': 'gemini-3-pro-image-preview',
       };
-      const modelName = modelMap[options.model] || 'gemini-2.5-flash-image';
+      const modelName = modelMap[options.model] || 'gemini-3.1-flash-image-preview';
 
       // Determine image size based on model and size option
       let imageSize: string | undefined;
