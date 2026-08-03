@@ -5,7 +5,9 @@ export type Model =
   | 'flux-schnell'
   | 'flux-pro'
   | 'gpt-image-1'
+  | 'gpt-image-1-mini'
   | 'gpt-image-1.5'
+  | 'gpt-image-2'
   | 'imagen-3'
   | 'imagen-3-fast'
   | 'imagen-4'
@@ -67,7 +69,9 @@ export const MODEL_TO_PROVIDER: Record<Model, Provider> = {
   'flux-schnell': 'replicate',
   'flux-pro': 'replicate',
   'gpt-image-1': 'openai',
+  'gpt-image-1-mini': 'openai',
   'gpt-image-1.5': 'openai',
+  'gpt-image-2': 'openai',
   'imagen-3': 'google',
   'imagen-3-fast': 'google',
   'imagen-4': 'google',

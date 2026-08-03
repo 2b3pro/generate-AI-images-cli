@@ -38,11 +38,16 @@ if (process.argv.includes('--list-models')) {
 
 program
   .argument('[prompt...]', 'Image generation prompt')
-  .option('-m, --model <model>', 'Model to use: nano-banana-2 (default), nano-banana-pro, nano-banana, imagen-4, imagen-3, imagen-3-fast, flux, flux-schnell, flux-pro, gpt-image-1, gpt-image-1.5', DEFAULT_OPTIONS.model)
+  .option('-m, --model <model>', 'Model to use: nano-banana-2 (default), nano-banana-pro, nano-banana, imagen-4, imagen-3, imagen-3-fast, flux, flux-schnell, flux-pro, gpt-image-2, gpt-image-1.5, gpt-image-1, gpt-image-1-mini', DEFAULT_OPTIONS.model)
   .option('-p, --prompt <text>', 'Image generation prompt (alternative to positional argument)')
-  .addOption(
-    new Option('-s, --size <size>', 'Image size/resolution')
-      .choices(['1K', '2K', '4K', '1024x1024', '1024x1792', '1792x1024', '1536x1536', '1024x1536', '1536x1024'])
+  .option(
+    '-s, --size <size>',
+    'Image size: 1K|2K|4K (Google), WxH (gpt-image-2 accepts any dimensions divisible by 16, longest edge <= 3840), or a fixed preset',
+    (val) => {
+      const presets = ['1K', '2K', '4K', 'auto'];
+      if (presets.includes(val) || /^\d+x\d+$/.test(val)) return val;
+      throw new Error(`Invalid size "${val}". Use 1K|2K|4K, auto, or WxH (e.g. 1088x1920).`);
+    }
   )
   .addOption(
     new Option('-a, --aspect-ratio <ratio>', 'Aspect ratio (default: 16:9)')
@@ -65,8 +70,8 @@ program
   .option('--steps <number>', 'Number of inference steps', parseInt)
   .option('--guidance <number>', 'Guidance scale', parseFloat)
   .addOption(
-    new Option('-q, --quality <quality>', 'Image quality (OpenAI models)')
-      .choices(['standard', 'hd'])
+    new Option('-q, --quality <quality>', 'Image quality (OpenAI models; standard/hd map to medium/high)')
+      .choices(['standard', 'hd', 'low', 'medium', 'high', 'auto'])
       .default(DEFAULT_OPTIONS.quality)
   )
   .addOption(
