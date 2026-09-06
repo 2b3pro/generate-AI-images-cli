@@ -1,5 +1,5 @@
 import type { ImageProvider, Model, Provider } from '../types';
-import { MODEL_TO_PROVIDER } from '../types';
+import { MODEL_TO_PROVIDER, resolveModel } from '../types';
 import { ReplicateProvider } from './replicate';
 import { OpenAIProvider } from './openai';
 import { GoogleProvider } from './google';
@@ -29,11 +29,12 @@ function getOrCreateProvider(providerName: Provider): ImageProvider {
   return provider;
 }
 
-export function getProviderForModel(model: Model): ImageProvider {
+export function getProviderForModel(modelInput: string): ImageProvider {
+  const model = resolveModel(modelInput);
   const providerName = MODEL_TO_PROVIDER[model];
 
   if (!providerName) {
-    throw new Error(`Unknown model: ${model}. Available models: ${Object.keys(MODEL_TO_PROVIDER).join(', ')}`);
+    throw new Error(`Unknown model: ${modelInput}. Available models: ${Object.keys(MODEL_TO_PROVIDER).join(', ')}`);
   }
 
   return getOrCreateProvider(providerName);

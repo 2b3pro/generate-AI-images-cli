@@ -3,6 +3,7 @@ import { BaseProvider } from './base';
 import type { GenerateOptions, GenerationResult, Model, AspectRatio } from '../types';
 import { ASPECT_RATIO_TO_DIMENSIONS, DEFAULT_OPTIONS } from '../types';
 import { readImageAsBase64, getMimeType } from '../utils/download';
+import { getKeychainPassword } from '../utils/keychain';
 
 const FLUX_MODELS = {
   'flux': 'black-forest-labs/flux-1.1-pro',
@@ -18,9 +19,13 @@ export class ReplicateProvider extends BaseProvider {
 
   constructor() {
     super();
-    const apiKey = process.env.REPLICATE_API_TOKEN;
+    const apiKey =
+      process.env.REPLICATE_API_TOKEN ||
+      process.env.REPLICATE_API_KEY ||
+      getKeychainPassword('REPLICATE_API_TOKEN') ||
+      getKeychainPassword('REPLICATE_API_KEY');
     if (!apiKey) {
-      throw new Error('REPLICATE_API_TOKEN environment variable is required');
+      throw new Error('REPLICATE_API_TOKEN environment variable (or macOS Keychain entry) is required');
     }
     this.client = new Replicate({ auth: apiKey });
   }

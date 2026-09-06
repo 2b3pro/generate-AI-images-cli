@@ -1,13 +1,14 @@
 import sharp from 'sharp';
+import { getKeychainPassword } from './keychain';
 
 /**
  * Remove background using remove.bg API
  */
 export async function removeBackground(inputPath: string, outputPath: string): Promise<string> {
-  const apiKey = process.env.REMOVE_BG_API_KEY;
+  const apiKey = process.env.REMOVE_BG_API_KEY || getKeychainPassword('REMOVE_BG_API_KEY');
 
   if (!apiKey) {
-    throw new Error('REMOVE_BG_API_KEY environment variable is required for background removal');
+    throw new Error('REMOVE_BG_API_KEY environment variable (or macOS Keychain entry) is required for background removal');
   }
 
   const file = Bun.file(inputPath);

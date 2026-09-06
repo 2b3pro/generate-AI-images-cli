@@ -3,6 +3,7 @@ import { BaseProvider } from './base';
 import type { GenerateOptions, GenerationResult, Model, AspectRatio, OpenAISize } from '../types';
 import { DEFAULT_OPTIONS, ASPECT_RATIO_TO_DIMENSIONS } from '../types';
 import { readImageAsBase64, getMimeType } from '../utils/download';
+import { getKeychainPassword } from '../utils/keychain';
 import { readFileSync } from 'fs';
 
 /**
@@ -82,9 +83,12 @@ export class OpenAIProvider extends BaseProvider {
 
   constructor() {
     super();
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey =
+      process.env.OPENAI_API_KEY ||
+      getKeychainPassword('OPENAI_API_KEY') ||
+      getKeychainPassword('OPENAI_PROJECT_API_KEY');
     if (!apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is required');
+      throw new Error('OPENAI_API_KEY environment variable (or macOS Keychain entry) is required');
     }
     this.client = new OpenAI({ apiKey });
   }
@@ -108,7 +112,16 @@ export class OpenAIProvider extends BaseProvider {
         // Reference images drive edit mode
         const refImage = options.referenceImages[0];
         const imageBuffer = readFileSync(refImage);
-        const imageFile = await toFile(imageBuffer, refImage.split('/').pop() || 'image.png');
+        // Explicit mimetype required — toFile() on a raw Buffer defaults to
+        // application/octet-stream, which the images.edit endpoint rejects.
+        const ext = refImage.toLowerCase().split('.').pop();
+        const mimeType =
+          ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
+          ext === 'webp' ? 'image/webp' :
+          'image/png';
+        const imageFile = await toFile(imageBuffer, refImage.split('/').pop() || 'image.png', {
+          type: mimeType,
+        });
 
         // Use images.edit for image editing
         const response = await this.client.images.edit({

@@ -1,34 +1,106 @@
 import { GoogleGenAI } from '@google/genai';
 import { spawn } from 'child_process';
+import fs from 'fs';
 import path from 'path';
 import { BaseProvider } from './base';
-import type { GenerateOptions, GenerationResult, Model, AspectRatio } from '../types';
+import type { GenerateOptions, GenerationResult, Model } from '../types';
 import { DEFAULT_OPTIONS } from '../types';
 import { readImageAsBase64, getMimeType } from '../utils/download';
+import { getKeychainPassword } from '../utils/keychain';
 
-const GEMINI_CLI = '/opt/homebrew/bin/gemini';
+function findGeminiCli(): string {
+  if (process.env.GEMINI_CLI_PATH && fs.existsSync(process.env.GEMINI_CLI_PATH)) {
+    return process.env.GEMINI_CLI_PATH;
+  }
+  const candidates = [
+    '/Users/ianashen/.nvm/versions/node/v25.5.0/bin/gemini',
+    '/opt/homebrew/bin/gemini',
+    '/usr/local/bin/gemini',
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return 'gemini';
+}
+
+function resolveApiKey(): string | undefined {
+  // 1. Check environment variables
+  if (process.env.GOOGLE_API_KEY?.trim()) return process.env.GOOGLE_API_KEY.trim();
+  if (process.env.GEMINI_API_KEY?.trim()) return process.env.GEMINI_API_KEY.trim();
+
+  // 2. Pull from macOS Keychain
+  const keychainKey =
+    getKeychainPassword('GEMINI_API_KEY') ||
+    getKeychainPassword('GOOGLE_API_KEY') ||
+    getKeychainPassword('NANOBANANA_API_KEY');
+  if (keychainKey) return keychainKey;
+
+  // 3. Fallback: check nanobanana extension .env or local environment files
+  const home = process.env.HOME || '';
+  const searchPaths = [
+    path.join(home, '.gemini', 'extensions', 'nanobanana', '.env'),
+    path.join(home, '.gemini', 'antigravity-cli', '.env'),
+    path.join(process.cwd(), '.env'),
+  ];
+
+  for (const envPath of searchPaths) {
+    try {
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf8');
+        const match = content.match(/^(?:GOOGLE_API_KEY|GEMINI_API_KEY|NANOBANANA_API_KEY)=(.*)$/m);
+        if (match && match[1]?.trim()) {
+          return match[1].trim();
+        }
+      }
+    } catch {
+      // Continue searching
+    }
+  }
+
+  return undefined;
+}
 
 export class GoogleProvider extends BaseProvider {
   name = 'Google';
-  models: Model[] = ['imagen-3', 'imagen-3-fast', 'imagen-4', 'nano-banana', 'nano-banana-2', 'nano-banana-pro'];
+  models: Model[] = [
+    'nano-banana-2',
+    'nano-banana-pro',
+    'nano-banana-2-lite',
+    'nano-banana',
+    'veo-3.1',
+    'veo-3.1-lite',
+  ];
 
   private client: GoogleGenAI | null = null;
 
   constructor() {
     super();
-    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey = resolveApiKey();
     if (apiKey) {
-      this.client = new GoogleGenAI({ apiKey });
+      // Ensure vertexai: false when using Gemini API keys
+      delete process.env.GOOGLE_GENAI_USE_VERTEXAI;
+      delete process.env.GOOGLE_CLOUD_PROJECT;
+      this.client = new GoogleGenAI({ apiKey, vertexai: false });
     }
   }
 
   private isNanoBanana(model: Model): boolean {
-    return model === 'nano-banana' || model === 'nano-banana-2' || model === 'nano-banana-pro';
+    return (
+      model === 'nano-banana' ||
+      model === 'nano-banana-2' ||
+      model === 'nano-banana-pro' ||
+      model === 'nano-banana-2-lite'
+    );
+  }
+
+  private isVideo(model: Model): boolean {
+    return model === 'veo-3.1' || model === 'veo-3.1-lite';
   }
 
   private runGeminiCli(prompt: string): Promise<{ stdout: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
-      const proc = spawn(GEMINI_CLI, [
+      const cliBin = findGeminiCli();
+      const proc = spawn(cliBin, [
         '--extensions', 'nanobanana',
         '--yolo',
         '--prompt', prompt,
@@ -73,7 +145,9 @@ export class GoogleProvider extends BaseProvider {
           opts.push(`Reference image path: ${ref}`);
         }
       }
-      if (options.size) opts.push(`Resolution: ${options.size}`);
+      if (options.resolution || options.size) {
+        opts.push(`Resolution: ${options.resolution || options.size}`);
+      }
       if (options.transparent) opts.push(`Use transparent background`);
       if (options.seed) opts.push(`Random seed: ${options.seed}`);
       if (options.style && options.style !== DEFAULT_OPTIONS.style) opts.push(`Style: ${options.style}`);
@@ -114,16 +188,193 @@ export class GoogleProvider extends BaseProvider {
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       if (msg.includes('ENOENT')) {
+        const cliBin = findGeminiCli();
         return {
           success: false,
-          error: `Gemini CLI not found at ${GEMINI_CLI}. Install it or use --api flag.`,
+          error: `Gemini CLI not found at ${cliBin}. Install it or use --api flag.`,
         };
       }
       return { success: false, error: msg };
     }
   }
 
+  private async generateVideo(options: GenerateOptions): Promise<GenerationResult> {
+    if (!this.client) {
+      return {
+        success: false,
+        error: 'GOOGLE_API_KEY or GEMINI_API_KEY environment variable (or macOS Keychain entry) is required for Veo video generation.',
+      };
+    }
+
+    const startTime = Date.now();
+
+    try {
+      const modelMap: Record<string, string> = {
+        'veo-3.1': 'veo-3.1-generate-preview',
+        'veo-3.1-lite': 'veo-3.1-lite-generate-preview',
+      };
+      const modelName = modelMap[options.model] || 'veo-3.1-generate-preview';
+
+      // Output path
+      let outputPath = options.output || DEFAULT_OPTIONS.videoOutput;
+      if (/\.(png|jpg|jpeg|webp)$/i.test(outputPath)) {
+        outputPath = outputPath.replace(/\.(png|jpg|jpeg|webp)$/i, '.mp4');
+      }
+
+      // Aspect ratio: Veo supports 16:9 and 9:16
+      let aspectRatio = options.aspectRatio || '16:9';
+      if (aspectRatio !== '16:9' && aspectRatio !== '9:16') {
+        aspectRatio = '16:9';
+      }
+
+      // Resolution & Duration:
+      // 720p supports 4s, 6s, 8s (default 4s)
+      // 1080p requires 8s duration
+      let resolution = (options.resolution || options.size || '720p').toLowerCase();
+      if (resolution !== '720p' && resolution !== '1080p') {
+        resolution = '720p';
+      }
+
+      let durationSeconds = options.duration || (resolution === '1080p' ? 8 : 4);
+      if (resolution === '1080p' && durationSeconds < 8) {
+        durationSeconds = 8;
+      }
+      if (durationSeconds < 4) durationSeconds = 4;
+      if (durationSeconds > 8) durationSeconds = 8;
+
+      const config: Record<string, unknown> = {
+        aspectRatio,
+        durationSeconds,
+        resolution,
+      };
+
+      if (options.fps) {
+        config.fps = options.fps;
+      }
+      if (options.seed !== undefined) {
+        config.seed = options.seed;
+      }
+      if (options.negativePrompt) {
+        config.negativePrompt = options.negativePrompt;
+      }
+
+      // Handle reference images for image-to-video
+      let imageParam: { imageBytes: string; mimeType: string } | undefined;
+      if (options.referenceImages?.length) {
+        const refImage = options.referenceImages[0];
+        const base64 = await readImageAsBase64(refImage);
+        const mimeType = getMimeType(refImage);
+        imageParam = {
+          imageBytes: base64,
+          mimeType,
+        };
+      }
+
+      options.onProgress?.(`Starting video generation with ${options.model}...`);
+
+      let operation = await this.client.models.generateVideos({
+        model: modelName,
+        prompt: options.prompt,
+        ...(imageParam && { image: imageParam }),
+        config,
+      });
+
+      // Poll until completed
+      let elapsed = 0;
+      const pollInterval = 5000;
+      const maxWaitTime = 300000; // 5 minutes
+
+      while (!operation.done) {
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        elapsed += pollInterval / 1000;
+        options.onProgress?.(`Generating video with ${options.model} (elapsed: ${elapsed}s)...`);
+
+        operation = await this.client.operations.getVideosOperation({ operation });
+
+        if (elapsed * 1000 >= maxWaitTime) {
+          return {
+            success: false,
+            error: `Video generation timed out after ${elapsed} seconds.`,
+          };
+        }
+      }
+
+      if (operation.error) {
+        return {
+          success: false,
+          error: `Video generation failed: ${JSON.stringify(operation.error)}`,
+        };
+      }
+
+      const generatedVideo = operation.response?.generatedVideos?.[0]?.video;
+      if (!generatedVideo) {
+        return {
+          success: false,
+          error: 'No video was returned by the model. Check safety filters or guidelines.',
+        };
+      }
+
+      options.onProgress?.(`Downloading generated video to ${path.basename(outputPath)}...`);
+
+      const dir = path.dirname(outputPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      if (generatedVideo.videoBytes) {
+        const buffer = Buffer.from(generatedVideo.videoBytes, 'base64');
+        await Bun.write(outputPath, buffer);
+      } else if (generatedVideo.uri) {
+        await this.client.files.download({
+          file: generatedVideo,
+          downloadPath: outputPath,
+        });
+      } else {
+        return {
+          success: false,
+          error: 'Video response contained neither video bytes nor download URI.',
+        };
+      }
+
+      return {
+        success: true,
+        outputPath,
+        metadata: {
+          model: options.model,
+          prompt: options.prompt,
+          duration: Date.now() - startTime,
+        },
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      if (errorMessage.includes('SAFETY') || errorMessage.includes('blocked')) {
+        return {
+          success: false,
+          error: 'Content blocked by safety filters. Try rephrasing your video prompt.',
+        };
+      }
+
+      if (errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+        return {
+          success: false,
+          error: 'API quota exceeded. Please try again later.',
+        };
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
   async generate(options: GenerateOptions): Promise<GenerationResult> {
+    // Video models route directly to Veo video generation
+    if (this.isVideo(options.model)) {
+      return this.generateVideo(options);
+    }
+
     // Nano-banana models default to CLI, use API only with --api flag
     if (this.isNanoBanana(options.model) && !options.useApi) {
       return this.generateViaCli(options);
@@ -133,7 +384,7 @@ export class GoogleProvider extends BaseProvider {
     if (!this.client) {
       return {
         success: false,
-        error: 'GOOGLE_API_KEY or GEMINI_API_KEY environment variable is required. For nanobanana models, omit --api to use Gemini CLI instead.',
+        error: 'GOOGLE_API_KEY or GEMINI_API_KEY environment variable (or macOS Keychain entry) is required. For nanobanana models, omit --api to use Gemini CLI instead.',
       };
     }
 
@@ -145,21 +396,25 @@ export class GoogleProvider extends BaseProvider {
 
       // Map model names to Gemini API model identifiers
       const modelMap: Record<string, string> = {
-        'imagen-3': 'imagen-3.0-generate-002',
-        'imagen-3-fast': 'imagen-3.0-fast-generate-001',
-        'imagen-4': 'gemini-3-pro-image-preview',
+        'nano-banana-2': 'gemini-3.1-flash-image',
+        'nano-banana-pro': 'gemini-3-pro-image',
+        'nano-banana-2-lite': 'gemini-3.1-flash-lite-image',
         'nano-banana': 'gemini-2.5-flash-image',
-        'nano-banana-2': 'gemini-3.1-flash-image-preview',
-        'nano-banana-pro': 'gemini-3-pro-image-preview',
       };
-      const modelName = modelMap[options.model] || 'gemini-3.1-flash-image-preview';
+      const modelName = modelMap[options.model] || 'gemini-3.1-flash-image';
 
-      // Determine image size based on model and size option
+      // Determine image size based on model and size/resolution option
       let imageSize: string | undefined;
-      if (options.size) {
-        const sizeUpper = options.size.toUpperCase();
+      const rawSize = options.resolution || options.size;
+      if (rawSize) {
+        const sizeUpper = rawSize.toUpperCase();
         if (['1K', '2K', '4K'].includes(sizeUpper)) {
-          imageSize = sizeUpper;
+          // nano-banana-2-lite is optimized for 1K
+          if (options.model === 'nano-banana-2-lite' && sizeUpper !== '1K') {
+            imageSize = '1K';
+          } else {
+            imageSize = sizeUpper;
+          }
         }
       }
 

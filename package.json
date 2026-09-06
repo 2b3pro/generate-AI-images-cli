@@ -1,7 +1,7 @@
 {
   "name": "img-gen-cli",
-  "version": "1.1.0",
-  "description": "AI Image Generation CLI - Generate images using Flux, DALL-E, Imagen, and more",
+  "version": "1.2.0",
+  "description": "AI Image & Video Generation CLI - Generate images and videos using Gemini (Nano Banana & Veo), OpenAI, Flux, and more",
   "type": "module",
   "bin": {
     "generate": "./dist/cli.js"
