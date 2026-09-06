@@ -1,4 +1,4 @@
-# generate-AI-images-cli
+# Generate AI Images and Video
 
 ![Cover](./assets/cover.png)
 
