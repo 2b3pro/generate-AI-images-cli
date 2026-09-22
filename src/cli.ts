@@ -6,8 +6,18 @@ import { getProviderForModel, listModels } from './providers';
 import { removeBackground, addBackgroundColor } from './utils/background';
 import { generateThumbnail } from './utils/thumbnail';
 import type { GenerateOptions, Model, AspectRatio } from './types';
-import { DEFAULT_OPTIONS, isVideoModel, resolveModel } from './types';
+import { DEFAULT_OPTIONS } from './types';
+import { getModelSpec, isVideoModel, listModelSpecs, loadModelRegistry, modelsConfigDir, resolveModel } from './config/models';
 import pkg from '../package.json';
+
+// Load config/models/*.yaml up front so a broken or missing config fails with
+// a readable message instead of a stack trace from deep inside option parsing.
+try {
+  loadModelRegistry();
+} catch (err) {
+  console.error(chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
+  process.exit(1);
+}
 
 const program = new Command();
 
@@ -19,26 +29,32 @@ program
 
 // Handle --list-models before requiring other options
 if (process.argv.includes('--list-models')) {
-  console.log(chalk.bold('\nAvailable Models:\n'));
+  console.log(chalk.bold('\nAvailable Models:'));
+  console.log(chalk.dim(`  (from ${modelsConfigDir()})\n`));
   const models = listModels();
 
-  const byProvider = models.reduce((acc, { model, provider }) => {
-    if (!acc[provider]) acc[provider] = [];
-    acc[provider].push(model);
+  const byProvider = models.reduce((acc, entry) => {
+    if (!acc[entry.provider]) acc[entry.provider] = [];
+    acc[entry.provider].push(entry);
     return acc;
-  }, {} as Record<string, string[]>);
+  }, {} as Record<string, typeof models>);
 
   for (const [provider, providerModels] of Object.entries(byProvider)) {
     console.log(chalk.cyan(`  ${provider.toUpperCase()}:`));
-    for (const model of providerModels) {
-      const isVideo = isVideoModel(model);
-      const tag = isVideo ? chalk.yellow(' [VIDEO]') : chalk.dim(' [IMAGE]');
-      console.log(`    - ${model}${tag}`);
+    for (const { model, kind, description, aliases, deprecated } of providerModels) {
+      const tag = kind === 'video' ? chalk.yellow(' [VIDEO]') : chalk.dim(' [IMAGE]');
+      const isDefault = model === DEFAULT_OPTIONS.model ? chalk.green(' (default)') : '';
+      console.log(`    - ${chalk.bold(model)}${tag}${isDefault}`);
+      if (description) console.log(chalk.dim(`        ${description}`));
+      if (deprecated) console.log(chalk.yellow(`        deprecated: ${deprecated}`));
+      if (aliases.length) console.log(chalk.dim(`        aliases: ${aliases.join(', ')}`));
     }
     console.log();
   }
   process.exit(0);
 }
+
+const MODEL_NAMES = listModelSpecs().map((m) => m.name).join(', ');
 
 async function readStdinIfAvailable(hasCliPrompt: boolean): Promise<string> {
   if (process.stdin.isTTY) return '';
@@ -78,17 +94,17 @@ program
   .argument('[prompt...]', 'Generation prompt')
   .option(
     '-m, --model <model>',
-    'Model to use: nano-banana-2 (default), nano-banana-pro, nano-banana-2-lite, nano-banana, veo-3.1, veo-3.1-lite, flux, flux-schnell, flux-pro, gpt-image-2, gpt-image-1.5, gpt-image-1, gpt-image-1-mini',
+    `Model to use (see --list-models). One of: ${MODEL_NAMES}`,
     DEFAULT_OPTIONS.model
   )
   .option('-p, --prompt <text>', 'Generation prompt (alternative to positional argument)')
   .option(
     '-s, --size <size>',
-    'Image size: 1K|2K|4K (Google), WxH (gpt-image-2 accepts any dimensions divisible by 16, longest edge <= 3840), or a fixed preset',
+    'Image size: 512|1K|2K|4K (Google; 512 is nano-banana-2 only), WxH (gpt-image-2 and newer accept any dimensions divisible by 16, longest edge <= 3840), or a fixed preset',
     (val) => {
-      const presets = ['1K', '2K', '4K', 'auto'];
+      const presets = ['512', '1K', '2K', '4K', 'auto'];
       if (presets.includes(val) || /^\d+x\d+$/.test(val)) return val;
-      throw new Error(`Invalid size "${val}". Use 1K|2K|4K, auto, or WxH (e.g. 1088x1920).`);
+      throw new Error(`Invalid size "${val}". Use 512|1K|2K|4K, auto, or WxH (e.g. 1088x1920).`);
     }
   )
   .addOption(
@@ -98,8 +114,8 @@ program
   )
   .option('-o, --output <path>', 'Output file path')
   .option('-r, --reference <path...>', 'Reference image(s) for style/composition or image-to-video (repeatable)')
-  .option('--duration <seconds>', 'Video duration in seconds: 4 or 8 (Veo models)', parseInt)
-  .option('--resolution <res>', 'Video/image resolution: 720p|1080p (video), 1K|2K|4K (Google image)')
+  .option('--duration <seconds>', 'Video duration in seconds: 4, 6, or 8 (Veo models)', parseInt)
+  .option('--resolution <res>', 'Video/image resolution: 720p|1080p|4k (video; 1080p/4k force 8s), 512|1K|2K|4K (Google image)')
   .option('--fps <number>', 'Video frame rate (e.g. 24, 30)', parseInt)
   .option('--transparent', 'Enable transparent background (where supported)')
   .option('--remove-bg', 'Remove background after generation using remove.bg API')
@@ -115,8 +131,8 @@ program
   .option('--steps <number>', 'Number of inference steps', parseInt)
   .option('--guidance <number>', 'Guidance scale', parseFloat)
   .addOption(
-    new Option('-q, --quality <quality>', 'Image quality (OpenAI models; standard/hd map to medium/high)')
-      .choices(['standard', 'hd', 'low', 'medium', 'high', 'auto'])
+    new Option('-q, --quality <quality>', 'Image quality (OpenAI models; standard/hd map to medium/high; xhigh/max are GPT Image 2.5 only)')
+      .choices(['standard', 'hd', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
       .default(DEFAULT_OPTIONS.quality)
   )
   .addOption(
@@ -125,7 +141,7 @@ program
       .default(DEFAULT_OPTIONS.style)
   )
   .option('--num-images <number>', 'Number of images to generate', parseInt, DEFAULT_OPTIONS.numImages)
-  .option('--api', 'Use Gemini API instead of CLI for nanobanana models')
+  .option('--api', '(deprecated, no-op) Gemini API is now the only image route')
   .option('--list-models', 'List available models and exit')
   .action(async (promptArgs: string[], opts) => {
     const cliPrompt = promptArgs.length > 0 ? promptArgs.join(' ') : (opts.prompt || '');
@@ -154,6 +170,10 @@ program
     }
 
     const isVideo = isVideoModel(resolvedModel);
+    const deprecation = getModelSpec(resolvedModel).deprecated;
+    if (deprecation) {
+      console.error(chalk.yellow(`Warning: ${resolvedModel} is deprecated. ${deprecation}`));
+    }
 
     // Determine output path
     let defaultOut = isVideo ? DEFAULT_OPTIONS.videoOutput : DEFAULT_OPTIONS.output;
@@ -307,14 +327,14 @@ ${chalk.bold('Examples:')}
   ${chalk.dim('# Image-to-video with Veo 3.1')}
   $ generate -m veo-3.1 "Bring this painting to life with gentle ambient motion" -r ./painting.png
 
-  ${chalk.dim('# Generate with OpenAI in HD quality')}
-  $ generate -m gpt-image-1 "Abstract digital art" -q hd
+  ${chalk.dim('# Highest-quality OpenAI generation (GPT Image 2.5 Sunburst)')}
+  $ generate -m gpt-image-2.5-sunburst "Abstract digital art" -q high
 
-  ${chalk.dim('# Generate with transparent background')}
-  $ generate -m gpt-image-1 "A cute robot mascot" --transparent
+  ${chalk.dim('# Fast, lower-cost OpenAI generation (GPT Image 2.5 Flare)')}
+  $ generate -m gpt-image-2.5-flare "A cute robot mascot" --transparent
 
-  ${chalk.dim('# Edit an existing image (gpt-image-1.5)')}
-  $ generate -m gpt-image-1.5 "Add a hat to the person" -r ./photo.png
+  ${chalk.dim('# Edit an existing image with OpenAI')}
+  $ generate -m gpt-image-2.5-sunburst "Add a hat to the person" -r ./photo.png
 
   ${chalk.dim('# Generate with multiple references (Gemini)')}
   $ generate "Blend these styles" -r style1.png -r style2.png
@@ -336,6 +356,11 @@ ${chalk.bold('Environment Variables:')}
   OPENAI_API_KEY                    Required for GPT-Image models
   REPLICATE_API_TOKEN               Required for Flux models
   REMOVE_BG_API_KEY                 Required for --remove-bg feature
+
+${chalk.bold('Model Configuration:')}
+  Models, aliases, API ids, and retired-model notices are defined in
+  config/models/<provider>.yaml. Edit those files to add or update models;
+  set GENERATE_MODELS_DIR to point at a different directory.
 
 ${chalk.dim('Note on retired models: Imagen 3, Imagen 3 Fast, Imagen 4, and Veo 2.0 were retired by Google and replaced by Gemini 3.x Nano Banana and Veo 3.1.')}
 `);

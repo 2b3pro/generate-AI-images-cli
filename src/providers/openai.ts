@@ -1,18 +1,20 @@
 import OpenAI, { toFile } from 'openai';
 import { BaseProvider } from './base';
-import type { GenerateOptions, GenerationResult, Model, AspectRatio, OpenAISize } from '../types';
+import type { GenerateOptions, GenerationResult, Model, ModelSpec, AspectRatio } from '../types';
 import { DEFAULT_OPTIONS, ASPECT_RATIO_TO_DIMENSIONS } from '../types';
-import { readImageAsBase64, getMimeType } from '../utils/download';
+import { getModelSpec, modelsForProvider } from '../config/models';
 import { getKeychainPassword } from '../utils/keychain';
 import { readFileSync } from 'fs';
 
 /**
- * Legacy gpt-image-1 / -1-mini / -1.5 accept only three fixed sizes.
- * gpt-image-2 accepts any WxH divisible by 16, longest edge <= 3840.
+ * Size, quality, and edit capabilities per model are declared in
+ * config/models/openai.yaml (size_mode, sizes, max_edge, min_pixels,
+ * max_pixels, qualities, edit). This file only interprets those flags.
+ * API reference: https://developers.openai.com/api/docs/guides/image-generation
  */
-const FIXED_SIZE_MODELS: Model[] = ['gpt-image-1', 'gpt-image-1-mini', 'gpt-image-1.5'];
 
-const ASPECT_TO_FIXED_SIZE: Record<AspectRatio, OpenAISize> = {
+/** Nearest fixed preset for models that only accept the three standard sizes. */
+const ASPECT_TO_FIXED_SIZE: Record<AspectRatio, string> = {
   '1:1': '1024x1024',
   '16:9': '1536x1024',
   '9:16': '1024x1536',
@@ -25,7 +27,7 @@ const ASPECT_TO_FIXED_SIZE: Record<AspectRatio, OpenAISize> = {
   '21:9': '1536x1024',
 };
 
-const MAX_EDGE = 3840;
+const DEFAULT_MAX_EDGE = 3840;
 
 /** Snap a dimension to the nearest positive multiple of 16. */
 function snap16(n: number): number {
@@ -34,50 +36,77 @@ function snap16(n: number): number {
 
 /**
  * Resolve the `size` parameter for a given model.
- * Fixed-size models are clamped to the nearest legal preset; gpt-image-2 gets
- * exact aspect-correct dimensions snapped to the API's divisible-by-16 rule.
+ * Fixed-size models are clamped to the nearest legal preset; flexible models
+ * get exact aspect-correct dimensions snapped to the API's divisible-by-16
+ * rule and checked against the model's edge and pixel-count limits.
  */
-function resolveSize(model: Model, options: GenerateOptions): string {
+function resolveSize(spec: ModelSpec, options: GenerateOptions): string {
   const aspectRatio = (options.aspectRatio || DEFAULT_OPTIONS.aspectRatio) as AspectRatio;
-
-  if (FIXED_SIZE_MODELS.includes(model)) {
-    const explicit = options.size as OpenAISize | undefined;
-    const legal: string[] = ['1024x1024', '1024x1536', '1536x1024', 'auto'];
-    if (explicit && legal.includes(explicit)) return explicit;
-    return ASPECT_TO_FIXED_SIZE[aspectRatio] || '1024x1024';
-  }
-
-  // gpt-image-2: honour an explicit WxH, otherwise derive from aspect ratio.
   const explicit = options.size;
-  if (explicit && /^\d+x\d+$/.test(explicit)) {
-    const [w, h] = explicit.split('x').map(Number);
-    return clampToMaxEdge(snap16(w), snap16(h));
+
+  if (spec.size_mode !== 'flexible') {
+    const legal = spec.sizes ?? ['1024x1024', '1024x1536', '1536x1024', 'auto'];
+    if (explicit && legal.includes(explicit)) return explicit;
+    const preset = ASPECT_TO_FIXED_SIZE[aspectRatio] || '1024x1024';
+    return legal.includes(preset) ? preset : legal[0];
   }
+
   if (explicit === 'auto') return 'auto';
 
-  const dims = ASPECT_RATIO_TO_DIMENSIONS[aspectRatio] || { width: 1024, height: 1024 };
-  return clampToMaxEdge(snap16(dims.width), snap16(dims.height));
-}
-
-/** Scale down proportionally if the longest edge exceeds the API limit. */
-function clampToMaxEdge(width: number, height: number): string {
-  const longest = Math.max(width, height);
-  if (longest <= MAX_EDGE) return `${width}x${height}`;
-  const scale = MAX_EDGE / longest;
-  return `${snap16(width * scale)}x${snap16(height * scale)}`;
-}
-
-/** Map the CLI's standard/hd flag onto the API's four-value quality enum. */
-function resolveQuality(quality?: string): 'low' | 'medium' | 'high' | 'auto' {
-  if (quality === 'low' || quality === 'medium' || quality === 'high' || quality === 'auto') {
-    return quality;
+  let width: number;
+  let height: number;
+  if (explicit && /^\d+x\d+$/.test(explicit)) {
+    [width, height] = explicit.split('x').map(Number);
+  } else {
+    const dims = ASPECT_RATIO_TO_DIMENSIONS[aspectRatio] || { width: 1024, height: 1024 };
+    width = dims.width;
+    height = dims.height;
   }
-  return quality === 'hd' ? 'high' : 'medium';
+  width = snap16(width);
+  height = snap16(height);
+
+  const maxEdge = spec.max_edge ?? DEFAULT_MAX_EDGE;
+  const longest = Math.max(width, height);
+  if (longest > maxEdge) {
+    const scale = maxEdge / longest;
+    width = snap16(width * scale);
+    height = snap16(height * scale);
+  }
+
+  const pixels = width * height;
+  if (spec.min_pixels && pixels < spec.min_pixels) {
+    throw new Error(
+      `Size ${width}x${height} is below ${spec.name}'s minimum of ${spec.min_pixels.toLocaleString()} pixels (e.g. 1024x1024).`
+    );
+  }
+  if (spec.max_pixels && pixels > spec.max_pixels) {
+    throw new Error(
+      `Size ${width}x${height} exceeds ${spec.name}'s maximum of ${spec.max_pixels.toLocaleString()} pixels (e.g. 3840x2160).`
+    );
+  }
+  return `${width}x${height}`;
+}
+
+/**
+ * Map the CLI's quality flag onto the API enum. `standard`/`hd` are legacy
+ * DALL-E names and map to medium/high; everything else passes through if the
+ * model's YAML lists it.
+ */
+function resolveQuality(spec: ModelSpec, quality?: string): string {
+  const mapped = quality === 'hd' ? 'high' : quality === 'standard' || !quality ? 'medium' : quality;
+  const allowed = spec.qualities ?? ['low', 'medium', 'high', 'auto'];
+  if (!allowed.includes(mapped)) {
+    throw new Error(
+      `Quality "${quality}" is not supported by ${spec.name}. Supported: ${allowed.join(', ')}.`
+    );
+  }
+  return mapped;
 }
 
 export class OpenAIProvider extends BaseProvider {
   name = 'OpenAI';
-  models: Model[] = ['gpt-image-1', 'gpt-image-1-mini', 'gpt-image-1.5', 'gpt-image-2'];
+  // Model list and capability flags live in config/models/openai.yaml
+  models: Model[] = modelsForProvider('openai');
 
   private client: OpenAI;
 
@@ -99,14 +128,19 @@ export class OpenAIProvider extends BaseProvider {
     try {
       const outputPath = options.output || DEFAULT_OPTIONS.output;
 
-      const model = options.model;
-      const size = resolveSize(model, options);
-      const quality = resolveQuality(options.quality);
+      const spec = getModelSpec(options.model);
+      const model = spec.id;
+      const size = resolveSize(spec, options);
+      const quality = resolveQuality(spec, options.quality);
 
-      // gpt-image-1.5 and gpt-image-2 support reference-image editing.
-      const isEditMode =
-        !!options.referenceImages?.length &&
-        (model === 'gpt-image-1.5' || model === 'gpt-image-2');
+      // Reference images route to /v1/images/edits on models that declare edit: true.
+      if (options.referenceImages?.length && !spec.edit) {
+        return {
+          success: false,
+          error: `${spec.name} does not support reference-image editing. Use gpt-image-2.5-sunburst, gpt-image-2.5-flare, or gpt-image-2.`,
+        };
+      }
+      const isEditMode = !!options.referenceImages?.length && !!spec.edit;
 
       if (isEditMode && options.referenceImages?.length) {
         // Reference images drive edit mode
@@ -124,12 +158,15 @@ export class OpenAIProvider extends BaseProvider {
         });
 
         // Use images.edit for image editing
+        // GPT image models always return base64; response_format is not sent.
         const response = await this.client.images.edit({
           model,
           image: imageFile,
           prompt: options.prompt,
           n: options.numImages || 1,
           size: size as '1024x1024' | '1536x1024' | '1024x1536',
+          quality: quality as 'low' | 'medium' | 'high' | 'auto',
+          ...(options.transparent && { background: 'transparent' as const }),
         });
 
         const imageData = response.data?.[0];
@@ -152,13 +189,15 @@ export class OpenAIProvider extends BaseProvider {
           };
         }
       } else {
-        // Standard generation
+        // Standard generation. GPT image models always return base64;
+        // response_format is not sent. Size/quality are cast because the
+        // installed SDK's enums predate flexible sizes and the 2.5 tiers.
         const response = await this.client.images.generate({
           model,
           prompt: options.prompt,
           n: options.numImages || 1,
           size: size as '1024x1024' | '1536x1024' | '1024x1536',
-          quality,
+          quality: quality as 'low' | 'medium' | 'high' | 'auto',
           background: options.transparent ? 'transparent' : 'opaque',
           output_format: 'png',
         });

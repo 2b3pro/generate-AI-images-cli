@@ -1,0 +1,129 @@
+# Replicate-hosted Black Forest Labs FLUX models.
+# Org page: https://replicate.com/black-forest-labs
+#
+#   id             Replicate model slug (owner/name) passed to replicate.run().
+#   kind           image | video
+#   deprecated     Optional notice; printed as a warning when the model is used.
+#   aspect_ratios  aspect_ratio values the model's schema accepts. Others are
+#                  refused before the API call.
+#   inputs         Maps CLI options onto this model's input schema. Omit a key
+#                  when the model has no such field and the option is ignored:
+#     images            array field for reference images (input_images | images)
+#     image             single-image field (image | image_prompt | input_image)
+#     max_images        cap for the `images` field
+#     prompt_strength   send prompt_strength with `image` (flux-dev style img2img)
+#     steps             field for --steps (steps | num_inference_steps)
+#     guidance          field for --guidance (guidance)
+#     output_quality    model accepts output_quality
+#     num_outputs       model accepts num_outputs
+#     resolution        field for output size (resolution | megapixels | output_megapixels)
+#     resolution_values map from CLI preset (512/1K/2K/4K) to that field's enum
+#
+# No FLUX model accepts negative_prompt; the CLI folds -n into the prompt text.
+# No FLUX model accepts guidance_scale; the field is `guidance` where it exists.
+
+provider: replicate
+
+models:
+  flux-2-pro:
+    id: black-forest-labs/flux-2-pro
+    kind: image
+    description: FLUX.2 Pro. Current production workhorse; generation and editing with up to 8 reference images (~$0.03 per 1MP image).
+    aliases: [flux-2, flux2, flux2-pro]
+    aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]
+    inputs:
+      images: input_images
+      max_images: 8
+      output_quality: true
+      resolution: resolution
+      resolution_values: { "512": "0.5 MP", "1K": "1 MP", "2K": "4 MP", "4K": "4 MP" }
+
+  flux-2-max:
+    id: black-forest-labs/flux-2-max
+    kind: image
+    description: FLUX.2 Max. Highest-fidelity BFL image model; generation and editing with up to 8 reference images (~$0.07 per 1MP image).
+    aliases: [flux-max, flux2-max]
+    aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]
+    inputs:
+      images: input_images
+      max_images: 8
+      output_quality: true
+      resolution: resolution
+      resolution_values: { "512": "0.5 MP", "1K": "1 MP", "2K": "4 MP", "4K": "4 MP" }
+
+  flux-2-flex:
+    id: black-forest-labs/flux-2-flex
+    kind: image
+    description: FLUX.2 Flex. Exposes steps and guidance; best for typography; up to 10 reference images.
+    aliases: [flux-flex, flux2-flex]
+    aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]
+    inputs:
+      images: input_images
+      max_images: 10
+      steps: steps
+      guidance: guidance
+      output_quality: true
+      resolution: resolution
+      resolution_values: { "512": "0.5 MP", "1K": "1 MP", "2K": "4 MP", "4K": "4 MP" }
+
+  flux-2-klein:
+    id: black-forest-labs/flux-2-klein-4b
+    kind: image
+    description: FLUX.2 Klein 4B. Sub-second 4-step generation and editing, cheapest FLUX (~$0.001 per MP); up to 5 reference images.
+    aliases: [flux-klein, flux-2-klein-4b, klein]
+    aspect_ratios: ["1:1", "16:9", "9:16", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "21:9", "9:21"]
+    inputs:
+      images: images
+      max_images: 5
+      output_quality: true
+      resolution: output_megapixels
+      resolution_values: { "512": "0.25", "1K": "1", "2K": "4", "4K": "4" }
+
+  flux:
+    id: black-forest-labs/flux-1.1-pro
+    kind: image
+    description: FLUX 1.1 Pro. Previous-generation flagship, still live on Replicate; BFL now lists it as legacy. Consider flux-2-pro.
+    aliases: [flux-1.1-pro]
+    aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]
+    inputs:
+      image: image_prompt
+      output_quality: true
+
+  flux-dev:
+    id: black-forest-labs/flux-dev
+    kind: image
+    description: FLUX.1 Dev. Open-weight 12B model; the only FLUX with true img2img (image + prompt_strength) and full steps/guidance control.
+    aspect_ratios: ["1:1", "16:9", "21:9", "3:2", "2:3", "4:5", "5:4", "3:4", "4:3", "9:16", "9:21"]
+    inputs:
+      image: image
+      prompt_strength: true
+      steps: num_inference_steps
+      guidance: guidance
+      output_quality: true
+      num_outputs: true
+      resolution: megapixels
+      resolution_values: { "512": "0.25", "1K": "1", "2K": "1", "4K": "1" }
+
+  flux-schnell:
+    id: black-forest-labs/flux-schnell
+    kind: image
+    description: FLUX.1 Schnell. 4-step open-weight model for rapid drafts (~$0.003 per image).
+    aspect_ratios: ["1:1", "16:9", "21:9", "3:2", "2:3", "4:5", "5:4", "3:4", "4:3", "9:16", "9:21"]
+    inputs:
+      steps: num_inference_steps
+      output_quality: true
+      num_outputs: true
+      resolution: megapixels
+      resolution_values: { "512": "0.25", "1K": "1", "2K": "1", "4K": "1" }
+
+  flux-pro:
+    id: black-forest-labs/flux-pro
+    kind: image
+    description: FLUX.1 Pro. Original pro model.
+    deprecated: Replicate marks FLUX.1 Pro as deprecated. Use flux (FLUX 1.1 Pro) or flux-2-pro.
+    aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]
+    inputs:
+      image: image_prompt
+      steps: steps
+      guidance: guidance
+      output_quality: true

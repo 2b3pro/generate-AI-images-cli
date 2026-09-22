@@ -1,27 +1,12 @@
 import { GoogleGenAI } from '@google/genai';
-import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { BaseProvider } from './base';
 import type { GenerateOptions, GenerationResult, Model } from '../types';
 import { DEFAULT_OPTIONS } from '../types';
+import { getModelSpec, modelsForProvider } from '../config/models';
 import { readImageAsBase64, getMimeType } from '../utils/download';
 import { getKeychainPassword } from '../utils/keychain';
-
-function findGeminiCli(): string {
-  if (process.env.GEMINI_CLI_PATH && fs.existsSync(process.env.GEMINI_CLI_PATH)) {
-    return process.env.GEMINI_CLI_PATH;
-  }
-  const candidates = [
-    '/Users/ianashen/.nvm/versions/node/v25.5.0/bin/gemini',
-    '/opt/homebrew/bin/gemini',
-    '/usr/local/bin/gemini',
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
-  }
-  return 'gemini';
-}
 
 function resolveApiKey(): string | undefined {
   // 1. Check environment variables
@@ -62,14 +47,8 @@ function resolveApiKey(): string | undefined {
 
 export class GoogleProvider extends BaseProvider {
   name = 'Google';
-  models: Model[] = [
-    'nano-banana-2',
-    'nano-banana-pro',
-    'nano-banana-2-lite',
-    'nano-banana',
-    'veo-3.1',
-    'veo-3.1-lite',
-  ];
+  // Model list, Gemini API ids, and capability flags live in config/models/google.yaml
+  models: Model[] = modelsForProvider('google');
 
   private client: GoogleGenAI | null = null;
 
@@ -80,122 +59,28 @@ export class GoogleProvider extends BaseProvider {
       // Ensure vertexai: false when using Gemini API keys
       delete process.env.GOOGLE_GENAI_USE_VERTEXAI;
       delete process.env.GOOGLE_CLOUD_PROJECT;
+
+      // @google/genai reads GOOGLE_API_KEY / GEMINI_API_KEY from the ambient
+      // environment and PREFERS GOOGLE_API_KEY over the key passed here
+      // ("Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using
+      // GOOGLE_API_KEY."). Since this binary's shebang is `bun`, Bun auto-loads
+      // a .env from whatever directory the user happens to be in, so a stale
+      // GOOGLE_API_KEY sitting in some project's .env silently overrode the key
+      // we just resolved — making generation fail with API_KEY_INVALID in one
+      // directory and succeed in another (diagnosed 2026-09-06).
+      //
+      // resolveApiKey() has ALREADY read these vars at their correct priority,
+      // so clearing them now loses nothing and makes the resolved key
+      // authoritative regardless of cwd.
+      delete process.env.GOOGLE_API_KEY;
+      delete process.env.GEMINI_API_KEY;
+
       this.client = new GoogleGenAI({ apiKey, vertexai: false });
     }
   }
 
-  private isNanoBanana(model: Model): boolean {
-    return (
-      model === 'nano-banana' ||
-      model === 'nano-banana-2' ||
-      model === 'nano-banana-pro' ||
-      model === 'nano-banana-2-lite'
-    );
-  }
-
   private isVideo(model: Model): boolean {
-    return model === 'veo-3.1' || model === 'veo-3.1-lite';
-  }
-
-  private runGeminiCli(prompt: string): Promise<{ stdout: string; exitCode: number }> {
-    return new Promise((resolve, reject) => {
-      const cliBin = findGeminiCli();
-      const proc = spawn(cliBin, [
-        '--extensions', 'nanobanana',
-        '--yolo',
-        '--prompt', prompt,
-      ]);
-
-      let stdout = '';
-      let stderr = '';
-      proc.stdout.on('data', (data) => { stdout += data.toString(); });
-      proc.stderr.on('data', (data) => { stderr += data.toString(); });
-      proc.on('close', (code) => {
-        resolve({ stdout: stdout + stderr, exitCode: code ?? 1 });
-      });
-      proc.on('error', (err) => reject(err));
-    });
-  }
-
-  private extractImagePath(output: string): string | null {
-    // Match absolute paths ending with image extensions
-    const matches = output.match(/\/[^\s`'"*?]+\.(?:png|jpg|jpeg|webp)/g);
-    return matches?.length ? matches[matches.length - 1] : null;
-  }
-
-  private async generateViaCli(options: GenerateOptions): Promise<GenerationResult> {
-    const startTime = Date.now();
-
-    try {
-      const aspectRatio = (options.aspectRatio || DEFAULT_OPTIONS.aspectRatio).replace(':', 'x');
-      const outputPath = options.output || DEFAULT_OPTIONS.output;
-      const outputDir = path.dirname(outputPath);
-
-      // Build prompt with options appended as prose
-      let fullPrompt = options.prompt;
-      if (options.negativePrompt) {
-        fullPrompt += ` Avoid: ${options.negativePrompt}`;
-      }
-
-      // Append all options as text directives
-      const opts: string[] = [];
-      opts.push(`aspect_ratio: ${aspectRatio}`);
-      if (options.referenceImages?.length) {
-        for (const ref of options.referenceImages) {
-          opts.push(`Reference image path: ${ref}`);
-        }
-      }
-      if (options.resolution || options.size) {
-        opts.push(`Resolution: ${options.resolution || options.size}`);
-      }
-      if (options.transparent) opts.push(`Use transparent background`);
-      if (options.seed) opts.push(`Random seed: ${options.seed}`);
-      if (options.style && options.style !== DEFAULT_OPTIONS.style) opts.push(`Style: ${options.style}`);
-      if (options.quality && options.quality !== DEFAULT_OPTIONS.quality) opts.push(`Quality: ${options.quality}`);
-      if (options.numImages && options.numImages > 1) opts.push(`Generate ${options.numImages} images`);
-      if (options.steps && options.steps !== DEFAULT_OPTIONS.steps) opts.push(`Inference steps: ${options.steps}`);
-      if (options.guidance && options.guidance !== DEFAULT_OPTIONS.guidance) opts.push(`Guidance scale: ${options.guidance}`);
-      opts.push(`Output destination: ${outputDir}`);
-
-      fullPrompt += ' —' + opts.join(' —');
-
-      const { stdout, exitCode } = await this.runGeminiCli(fullPrompt);
-
-      if (exitCode !== 0) {
-        return {
-          success: false,
-          error: `Gemini CLI exited with code ${exitCode}:\n${stdout}`,
-        };
-      }
-
-      const extractedPath = this.extractImagePath(stdout);
-      if (!extractedPath) {
-        return {
-          success: false,
-          error: `Could not extract output path from Gemini CLI output:\n${stdout}`,
-        };
-      }
-
-      return {
-        success: true,
-        outputPath: extractedPath,
-        metadata: {
-          model: options.model,
-          prompt: options.prompt,
-          duration: Date.now() - startTime,
-        },
-      };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      if (msg.includes('ENOENT')) {
-        const cliBin = findGeminiCli();
-        return {
-          success: false,
-          error: `Gemini CLI not found at ${cliBin}. Install it or use --api flag.`,
-        };
-      }
-      return { success: false, error: msg };
-    }
+    return getModelSpec(model).kind === 'video';
   }
 
   private async generateVideo(options: GenerateOptions): Promise<GenerationResult> {
@@ -209,11 +94,8 @@ export class GoogleProvider extends BaseProvider {
     const startTime = Date.now();
 
     try {
-      const modelMap: Record<string, string> = {
-        'veo-3.1': 'veo-3.1-generate-preview',
-        'veo-3.1-lite': 'veo-3.1-lite-generate-preview',
-      };
-      const modelName = modelMap[options.model] || 'veo-3.1-generate-preview';
+      const spec = getModelSpec(options.model);
+      const modelName = spec.id;
 
       // Output path
       let outputPath = options.output || DEFAULT_OPTIONS.videoOutput;
@@ -227,16 +109,16 @@ export class GoogleProvider extends BaseProvider {
         aspectRatio = '16:9';
       }
 
-      // Resolution & Duration:
-      // 720p supports 4s, 6s, 8s (default 4s)
-      // 1080p requires 8s duration
-      let resolution = (options.resolution || options.size || '720p').toLowerCase();
-      if (resolution !== '720p' && resolution !== '1080p') {
-        resolution = '720p';
+      // Resolution & Duration (resolutions list comes from YAML; first entry is default):
+      // 720p supports 4s, 6s, 8s; 1080p and 4k require 8s.
+      const allowedRes = (spec.resolutions ?? ['720p', '1080p']).map((r) => r.toLowerCase());
+      let resolution = (options.resolution || options.size || allowedRes[0]).toLowerCase();
+      if (!allowedRes.includes(resolution)) {
+        resolution = allowedRes[0];
       }
 
-      let durationSeconds = options.duration || (resolution === '1080p' ? 8 : 4);
-      if (resolution === '1080p' && durationSeconds < 8) {
+      let durationSeconds = options.duration || (resolution === '720p' ? 4 : 8);
+      if (resolution !== '720p' && durationSeconds < 8) {
         durationSeconds = 8;
       }
       if (durationSeconds < 4) durationSeconds = 4;
@@ -375,16 +257,18 @@ export class GoogleProvider extends BaseProvider {
       return this.generateVideo(options);
     }
 
-    // Nano-banana models default to CLI, use API only with --api flag
-    if (this.isNanoBanana(options.model) && !options.useApi) {
-      return this.generateViaCli(options);
-    }
-
-    // API path — require API key
+    // All image models go through the Gemini API. The former `gemini` CLI route
+    // was removed 2026-09-06: that CLI is deprecated and now fails at auth
+    // ("This client is no longer supported for Gemini Code Assist for
+    // individuals"), and it identified its output by regex-scraping a file path
+    // out of agent prose, which was never a reliable contract.
     if (!this.client) {
       return {
         success: false,
-        error: 'GOOGLE_API_KEY or GEMINI_API_KEY environment variable (or macOS Keychain entry) is required. For nanobanana models, omit --api to use Gemini CLI instead.',
+        error:
+          'No Gemini API key found. Set GEMINI_API_KEY (or GOOGLE_API_KEY / NANOBANANA_API_KEY), ' +
+          'or add one to the macOS Keychain:\n' +
+          '  security add-generic-password -a "$USER" -s "gemini-api-key" -w "<your key>"',
       };
     }
 
@@ -394,27 +278,22 @@ export class GoogleProvider extends BaseProvider {
       const aspectRatio = options.aspectRatio || DEFAULT_OPTIONS.aspectRatio;
       const outputPath = options.output || DEFAULT_OPTIONS.output;
 
-      // Map model names to Gemini API model identifiers
-      const modelMap: Record<string, string> = {
-        'nano-banana-2': 'gemini-3.1-flash-image',
-        'nano-banana-pro': 'gemini-3-pro-image',
-        'nano-banana-2-lite': 'gemini-3.1-flash-lite-image',
-        'nano-banana': 'gemini-2.5-flash-image',
-      };
-      const modelName = modelMap[options.model] || 'gemini-3.1-flash-image';
+      const spec = getModelSpec(options.model);
+      const modelName = spec.id;
 
-      // Determine image size based on model and size/resolution option
+      // Determine image size from the model's allowed list (image_sizes in YAML).
+      // Requests above the model's ceiling fall back to the largest allowed size.
       let imageSize: string | undefined;
       const rawSize = options.resolution || options.size;
-      if (rawSize) {
-        const sizeUpper = rawSize.toUpperCase();
-        if (['1K', '2K', '4K'].includes(sizeUpper)) {
-          // nano-banana-2-lite is optimized for 1K
-          if (options.model === 'nano-banana-2-lite' && sizeUpper !== '1K') {
-            imageSize = '1K';
-          } else {
-            imageSize = sizeUpper;
-          }
+      const allowedSizes = (spec.image_sizes ?? []).map((v) => String(v).toUpperCase());
+      if (rawSize && allowedSizes.length) {
+        const order = ['512', '1K', '2K', '4K'];
+        const want = rawSize.toUpperCase();
+        if (order.includes(want)) {
+          const notAbove = allowedSizes
+            .filter((a) => order.indexOf(a) <= order.indexOf(want))
+            .sort((a, b) => order.indexOf(b) - order.indexOf(a));
+          imageSize = notAbove[0] ?? allowedSizes[0];
         }
       }
 

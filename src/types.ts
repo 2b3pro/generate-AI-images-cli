@@ -1,21 +1,85 @@
 export type Provider = 'replicate' | 'openai' | 'google';
 
-export type Model =
-  | 'flux'
-  | 'flux-schnell'
-  | 'flux-pro'
-  | 'gpt-image-1'
-  | 'gpt-image-1-mini'
-  | 'gpt-image-1.5'
-  | 'gpt-image-2'
-  // Google Gemini Image Models (Nano Banana family)
-  | 'nano-banana-2'
-  | 'nano-banana-pro'
-  | 'nano-banana-2-lite'
-  | 'nano-banana'
-  // Google Gemini Video Models (Veo family)
-  | 'veo-3.1'
-  | 'veo-3.1-lite';
+/**
+ * Canonical model name as listed in config/models/*.yaml (e.g. "nano-banana-2",
+ * "gpt-image-2.5-sunburst"). The registry in src/config/models.ts is the
+ * source of truth; nothing in code enumerates models any more.
+ */
+export type Model = string;
+
+export type ModelKind = 'image' | 'video';
+
+/** One entry from a provider's YAML file, normalised by the registry loader. */
+export interface ModelSpec {
+  /** Canonical CLI name (the YAML key) */
+  name: Model;
+  provider: Provider;
+  /** Identifier sent to the provider's API (defaults to `name`) */
+  id: string;
+  kind: ModelKind;
+  description?: string;
+  /** Alternate names accepted by --model */
+  aliases: string[];
+  /** Human-readable deprecation notice; the CLI warns when the model is used */
+  deprecated?: string;
+
+  // ---- Provider-specific capability flags (all optional) ----
+  /** OpenAI: model accepts reference images via the images.edit endpoint */
+  edit?: boolean;
+  /** OpenAI: "fixed" = only `sizes` are legal; "flexible" = any WxH divisible by 16 */
+  size_mode?: 'fixed' | 'flexible';
+  /** OpenAI: legal size strings when size_mode is "fixed" */
+  sizes?: string[];
+  /** OpenAI: longest-edge limit in pixels when size_mode is "flexible" */
+  max_edge?: number;
+  /** OpenAI: minimum width*height when size_mode is "flexible" */
+  min_pixels?: number;
+  /** OpenAI: maximum width*height when size_mode is "flexible" */
+  max_pixels?: number;
+  /** OpenAI: quality values the model accepts; the CLI's standard/hd map onto these */
+  qualities?: string[];
+  /** Google image: imageSize values the model accepts (e.g. 512, 1K, 2K, 4K); omit if the model has no size control */
+  image_sizes?: (string | number)[];
+  /** Google video: resolutions the model accepts (e.g. 720p, 1080p, 4k); first entry is the default */
+  resolutions?: string[];
+  /** Replicate: aspect_ratio enum the model accepts; others are rejected before the API call */
+  aspect_ratios?: string[];
+  /** Replicate: how CLI options map onto this model's input schema */
+  inputs?: ReplicateInputs;
+}
+
+/**
+ * Replicate models differ in which input fields they accept. Each entry names
+ * the schema field to use for a CLI option, or is omitted when the model has
+ * no such field (the option is then ignored).
+ */
+export interface ReplicateInputs {
+  /** Field that takes an ARRAY of reference image URLs (e.g. input_images, images) */
+  images?: string;
+  /** Field that takes a SINGLE reference image URL (e.g. image, image_prompt, input_image) */
+  image?: string;
+  /** Max reference images for the `images` field */
+  max_images?: number;
+  /** Send prompt_strength alongside `image` (true img2img models only) */
+  prompt_strength?: boolean;
+  /** Field for --steps (steps | num_inference_steps) */
+  steps?: string;
+  /** Field for --guidance (guidance) */
+  guidance?: string;
+  /** Model accepts output_quality (0-100) */
+  output_quality?: boolean;
+  /** Model accepts num_outputs */
+  num_outputs?: boolean;
+  /** Field for output resolution (resolution | megapixels | output_megapixels) */
+  resolution?: string;
+  /** Map from CLI size preset (512/1K/2K/4K) to this model's resolution enum value */
+  resolution_values?: Record<string, string>;
+}
+
+export interface ObsoleteModel {
+  replacement: Model;
+  reason: string;
+}
 
 export type AspectRatio =
   | '1:1' | '16:9' | '9:16'
@@ -45,9 +109,11 @@ export interface GenerateOptions {
   seed?: number;
   steps?: number;
   guidance?: number;
-  quality?: 'standard' | 'hd';
+  quality?: 'standard' | 'hd' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'auto';
   style?: 'vivid' | 'natural';
   numImages?: number;
+  /** @deprecated No-op since 2026-09-06 — the Gemini API is the only image
+   *  route. Kept so existing callers passing --api do not break. */
   useApi?: boolean;
   onProgress?: (status: string) => void;
 }
@@ -68,96 +134,6 @@ export interface ImageProvider {
   name: string;
   models: Model[];
   generate(options: GenerateOptions): Promise<GenerationResult>;
-}
-
-export const MODEL_TO_PROVIDER: Record<Model, Provider> = {
-  'flux': 'replicate',
-  'flux-schnell': 'replicate',
-  'flux-pro': 'replicate',
-  'gpt-image-1': 'openai',
-  'gpt-image-1-mini': 'openai',
-  'gpt-image-1.5': 'openai',
-  'gpt-image-2': 'openai',
-  'nano-banana-2': 'google',
-  'nano-banana-pro': 'google',
-  'nano-banana-2-lite': 'google',
-  'nano-banana': 'google',
-  'veo-3.1': 'google',
-  'veo-3.1-lite': 'google',
-};
-
-export const MODEL_ALIASES: Record<string, Model> = {
-  'gemini-3.1-flash-image': 'nano-banana-2',
-  'gemini-3.1-flash': 'nano-banana-2',
-  'gemini-flash': 'nano-banana-2',
-  'gemini-3-pro-image': 'nano-banana-pro',
-  'gemini-3-pro': 'nano-banana-pro',
-  'gemini-pro': 'nano-banana-pro',
-  'gemini-3.1-flash-lite-image': 'nano-banana-2-lite',
-  'gemini-3.1-flash-lite': 'nano-banana-2-lite',
-  'gemini-lite': 'nano-banana-2-lite',
-  'nano-banana-lite': 'nano-banana-2-lite',
-  'gemini-2.5-flash-image': 'nano-banana',
-  'gemini-2.5-flash': 'nano-banana',
-  'veo': 'veo-3.1',
-  'veo-3.1-generate-preview': 'veo-3.1',
-  'veo-lite': 'veo-3.1-lite',
-  'veo-3.1-lite-generate-preview': 'veo-3.1-lite',
-};
-
-export const OBSOLETE_MODELS: Record<string, { replacement: Model; reason: string }> = {
-  'imagen-3': {
-    replacement: 'nano-banana-2',
-    reason: 'Imagen 3 was retired by Google on August 17, 2026. Use nano-banana-2 (Gemini 3.1 Flash Image) instead.',
-  },
-  'imagen-3-fast': {
-    replacement: 'nano-banana-2-lite',
-    reason: 'Imagen 3 Fast was retired by Google on August 17, 2026. Use nano-banana-2-lite (Gemini 3.1 Flash Lite Image) instead.',
-  },
-  'imagen-4': {
-    replacement: 'nano-banana-pro',
-    reason: 'Imagen 4 was retired by Google on August 17, 2026. Use nano-banana-pro (Gemini 3 Pro Image) instead.',
-  },
-  'imagen-3.0-generate-002': {
-    replacement: 'nano-banana-2',
-    reason: 'Imagen 3 was retired by Google on August 17, 2026. Use nano-banana-2 (Gemini 3.1 Flash Image) instead.',
-  },
-  'imagen-3.0-fast-generate-001': {
-    replacement: 'nano-banana-2-lite',
-    reason: 'Imagen 3 Fast was retired by Google on August 17, 2026. Use nano-banana-2-lite (Gemini 3.1 Flash Lite Image) instead.',
-  },
-  'veo-2': {
-    replacement: 'veo-3.1',
-    reason: 'Veo 2.0 was retired by Google on June 30, 2026. Use veo-3.1 instead.',
-  },
-  'veo-2.0': {
-    replacement: 'veo-3.1',
-    reason: 'Veo 2.0 was retired by Google on June 30, 2026. Use veo-3.1 instead.',
-  },
-  'veo-2.0-generate-001': {
-    replacement: 'veo-3.1',
-    reason: 'Veo 2.0 was retired by Google on June 30, 2026. Use veo-3.1 instead.',
-  },
-};
-
-export function isVideoModel(model: string): boolean {
-  const lower = model.toLowerCase();
-  return lower.startsWith('veo');
-}
-
-export function resolveModel(modelName: string): Model {
-  const lower = modelName.toLowerCase();
-  if (lower in MODEL_TO_PROVIDER) {
-    return lower as Model;
-  }
-  if (lower in MODEL_ALIASES) {
-    return MODEL_ALIASES[lower];
-  }
-  if (lower in OBSOLETE_MODELS) {
-    const obs = OBSOLETE_MODELS[lower];
-    throw new Error(`Model "${modelName}" is obsolete: ${obs.reason}`);
-  }
-  return modelName as Model;
 }
 
 export const ASPECT_RATIO_TO_DIMENSIONS: Record<AspectRatio, { width: number; height: number }> = {

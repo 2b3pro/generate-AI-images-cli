@@ -1,0 +1,101 @@
+# OpenAI GPT Image models.
+# API reference: https://developers.openai.com/api/docs/guides/image-generation
+#
+# Each key under `models:` is the name you pass to `generate -m <name>`.
+#   id            Model identifier sent to the Images API (defaults to the key).
+#   kind          image | video
+#   description   Shown by `generate --list-models`.
+#   aliases       Extra names accepted by --model (snapshot ids go here).
+#   deprecated    Optional notice; printed as a warning when the model is used.
+#   edit          true if the model accepts reference images via /v1/images/edits.
+#   size_mode     fixed    -> only the `sizes` list is accepted
+#                 flexible -> any WIDTHxHEIGHT, both divisible by 16, within the
+#                             max_edge / min_pixels / max_pixels limits below
+#   sizes         Legal sizes when size_mode is fixed.
+#   max_edge      Longest edge in pixels (flexible mode).
+#   min_pixels    Minimum width*height (flexible mode).
+#   max_pixels    Maximum width*height (flexible mode).
+#   qualities     Values accepted by the API's `quality` param. The CLI maps
+#                 `standard` -> medium and `hd` -> high before checking this list.
+#
+# `obsolete:` entries make `generate` refuse a removed model with a migration hint.
+
+provider: openai
+
+models:
+  gpt-image-2.5-sunburst:
+    id: gpt-image-2.5-sunburst
+    kind: image
+    description: GPT Image 2.5 Sunburst. Highest quality; best for editing precision and inpainting.
+    aliases: [gpt-image-2.5, sunburst, gpt-image-2.5-sunburst-2026-09-08]
+    edit: true
+    size_mode: flexible
+    max_edge: 3840
+    min_pixels: 655360
+    max_pixels: 8294400
+    qualities: [low, medium, high, xhigh, max, auto]
+
+  gpt-image-2.5-flare:
+    id: gpt-image-2.5-flare
+    kind: image
+    description: GPT Image 2.5 Flare. Fastest 2.5 model for high-quality everyday generation.
+    aliases: [flare, gpt-image-2.5-flare-2026-09-08]
+    edit: true
+    size_mode: flexible
+    max_edge: 3840
+    min_pixels: 655360
+    max_pixels: 8294400
+    qualities: [low, medium, high, xhigh, max, auto]
+
+  gpt-image-2:
+    id: gpt-image-2
+    kind: image
+    description: GPT Image 2. Flexible sizes and high-fidelity image input; Batch API supported.
+    aliases: [gpt-image-2-2026-04-21]
+    edit: true
+    size_mode: flexible
+    max_edge: 3840
+    min_pixels: 655360
+    max_pixels: 8294400
+    qualities: [low, medium, high, auto]
+
+  gpt-image-1.5:
+    id: gpt-image-1.5
+    kind: image
+    description: GPT Image 1.5. Fixed sizes only.
+    deprecated: Shuts down 2026-12-01. Use gpt-image-2.5-sunburst or gpt-image-2.5-flare.
+    edit: true
+    size_mode: fixed
+    sizes: [1024x1024, 1536x1024, 1024x1536, auto]
+    qualities: [low, medium, high, auto]
+
+  gpt-image-1:
+    id: gpt-image-1
+    kind: image
+    description: GPT Image 1. Previous-generation model, fixed sizes only.
+    deprecated: Shuts down 2026-10-23. Use gpt-image-2.5-sunburst or gpt-image-2.5-flare.
+    edit: false
+    size_mode: fixed
+    sizes: [1024x1024, 1536x1024, 1024x1536, auto]
+    qualities: [low, medium, high, auto]
+
+  gpt-image-1-mini:
+    id: gpt-image-1-mini
+    kind: image
+    description: GPT Image 1 Mini. Low-cost previous-generation model, fixed sizes only.
+    deprecated: Shuts down 2026-12-01. Use gpt-image-2.5-flare.
+    edit: false
+    size_mode: fixed
+    sizes: [1024x1024, 1536x1024, 1024x1536, auto]
+    qualities: [low, medium, high, auto]
+
+obsolete:
+  dall-e-3:
+    replacement: gpt-image-2.5-sunburst
+    reason: DALL-E 3 was removed from the OpenAI API on May 12, 2026. Use gpt-image-2.5-sunburst instead.
+  dall-e-2:
+    replacement: gpt-image-2.5-flare
+    reason: DALL-E 2 was removed from the OpenAI API on May 12, 2026. Use gpt-image-2.5-flare instead.
+  chatgpt-image-latest:
+    replacement: gpt-image-2.5-sunburst
+    reason: chatgpt-image-latest is deprecated (shutdown December 1, 2026). Use gpt-image-2.5-sunburst instead.

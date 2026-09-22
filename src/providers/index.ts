@@ -1,5 +1,5 @@
 import type { ImageProvider, Model, Provider } from '../types';
-import { MODEL_TO_PROVIDER, resolveModel } from '../types';
+import { getModelSpec, listModelSpecs, resolveModel } from '../config/models';
 import { ReplicateProvider } from './replicate';
 import { OpenAIProvider } from './openai';
 import { GoogleProvider } from './google';
@@ -31,19 +31,17 @@ function getOrCreateProvider(providerName: Provider): ImageProvider {
 
 export function getProviderForModel(modelInput: string): ImageProvider {
   const model = resolveModel(modelInput);
-  const providerName = MODEL_TO_PROVIDER[model];
-
-  if (!providerName) {
-    throw new Error(`Unknown model: ${modelInput}. Available models: ${Object.keys(MODEL_TO_PROVIDER).join(', ')}`);
-  }
-
-  return getOrCreateProvider(providerName);
+  return getOrCreateProvider(getModelSpec(model).provider);
 }
 
-export function listModels(): { model: Model; provider: Provider }[] {
-  return Object.entries(MODEL_TO_PROVIDER).map(([model, provider]) => ({
-    model: model as Model,
-    provider,
+export function listModels(): { model: Model; provider: Provider; kind: 'image' | 'video'; description?: string; aliases: string[]; deprecated?: string }[] {
+  return listModelSpecs().map((m) => ({
+    model: m.name,
+    provider: m.provider,
+    kind: m.kind,
+    description: m.description,
+    aliases: m.aliases,
+    deprecated: m.deprecated,
   }));
 }
 
