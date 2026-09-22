@@ -23,7 +23,13 @@ const program = new Command();
 
 program
   .name('generate')
-  .version(pkg.version, '-v, -V, --version', 'Output current version')
+  .version(pkg.version, '-v, --version', 'Output current version')
+  // Commander only accepts one short flag per option; keep -V as a hidden alias.
+  .addOption(new Option('-V').hideHelp())
+  .on('option:V', () => {
+    console.log(pkg.version);
+    process.exit(0);
+  })
   .description(`AI Image & Video Generation CLI (v${pkg.version}) - Generate images and videos using Gemini (Nano Banana & Veo), OpenAI, Flux, and more`)
   .addHelpText('beforeAll', chalk.bold.cyan(`\n  generate v${pkg.version}\n`));
 
