@@ -4,3 +4,10 @@
 # price AND a side-by-side on the same prompts shows parity.
 # A name offered by one provider needs no entry; a shared name without an
 # entry is a load-time error.
+
+nano-banana-2: google
+nano-banana-pro: google
+gpt-image-2: openai
+flux-2-pro: replicate
+veo-3.1: google
+veo-3.1-fast: google

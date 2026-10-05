@@ -30,6 +30,7 @@ models:
     id: black-forest-labs/flux-2-pro
     kind: image
     billing: metered
+    direct_price: { usd: 0.030, unit: image, source: "https://replicate.com/black-forest-labs/flux-2-pro (0.015 per run + 0.015 per output MP, 1 MP)", checked: 2026-10-04 }
     description: FLUX.2 Pro. Current production workhorse; generation and editing with up to 8 reference images (~$0.03 per 1MP image).
     aliases: [flux-2, flux2, flux2-pro]
     aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]

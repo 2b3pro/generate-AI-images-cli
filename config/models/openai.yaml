@@ -54,6 +54,7 @@ models:
     id: gpt-image-2
     kind: image
     billing: metered
+    direct_price: { usd: 0.053, unit: image, source: "https://developers.openai.com/api/docs/guides/image-generation (1024x1024 medium, output only)", checked: 2026-10-04 }
     description: GPT Image 2. Flexible sizes and high-fidelity image input; Batch API supported.
     aliases: [gpt-image-2-2026-04-21]
     edit: true

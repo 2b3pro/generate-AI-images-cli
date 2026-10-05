@@ -1,0 +1,19 @@
+# Codex CLI image generation through its built-in $imagegen skill.
+# Billed against the Codex plan's usage limits (shared with every other use of
+# the same account), not per call. Agentic: inspects and may revise its output.
+#   agent_model       optional --model for `codex exec`; omit to use Codex's configured default
+#   reasoning_effort  model_reasoning_effort passed to codex exec
+#   timeout_seconds   process timeout (default 600)
+
+provider: codex
+
+models:
+  gpt-image-2:
+    id: gpt-image-2
+    kind: image
+    billing: plan
+    agentic: true
+    reasoning_effort: high
+    timeout_seconds: 600
+    description: GPT Image 2 via Codex $imagegen. Unpaid at the margin; slower; good for conservative restoration.
+    direct_price: { usd: 0, unit: plan limits }

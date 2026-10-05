@@ -1,0 +1,165 @@
+# Atlas Cloud models (reseller; https://api.atlascloud.ai/api/v1).
+# Every id and input field below was confirmed on the model's reference page
+# (URL + date in the comment above each entry) and by
+# `bun scripts/verify-atlas-models.ts`. Never copy ids from guide-page examples.
+#
+#   id / edit_id / i2v_id / r2v_id   task variants; chosen from the references given
+#   billing      always metered here
+#   refs         role caps, exclusive groups, forced durations (see src/refs.ts)
+#   label_style  prose | at-index | wan-numbered
+#   draft        cheaper preview tier: { model } or { resolution }
+#   inputs       request field names for CLI options (image, images, max_images,
+#                end_image, duration, resolution, resolution_values,
+#                aspect_ratio, seed, negative_prompt, prompt)
+
+provider: atlas
+
+models:
+  # --- image, shared with direct providers ---
+  # https://www.atlascloud.ai/models/google/nano-banana-2/text-to-image , .../edit (read 2026-10-04): edit takes images 1-14; resolution 1k|2k|4k
+  nano-banana-2:
+    id: google/nano-banana-2/text-to-image
+    edit_id: google/nano-banana-2/edit
+    kind: image
+    billing: metered
+    description: Gemini 3.1 Flash Image via Atlas.
+    label_style: prose
+    refs: { identity: 6, style: 4, object: 6, location: 4 }
+    inputs: { images: images, max_images: 14, aspect_ratio: aspect_ratio, resolution: resolution, resolution_values: { 1K: 1k, 2K: 2k, 4K: 4k }, seed: seed }
+
+  # https://www.atlascloud.ai/models/google/nano-banana-pro/edit (read 2026-10-04): edit takes images 1-10; resolution 1k|2k|4k
+  nano-banana-pro:
+    id: google/nano-banana-pro/text-to-image
+    edit_id: google/nano-banana-pro/edit
+    kind: image
+    billing: metered
+    description: Gemini 3 Pro Image via Atlas.
+    label_style: prose
+    refs: { identity: 6, style: 4, object: 6, location: 4 }
+    inputs: { images: images, max_images: 10, aspect_ratio: aspect_ratio, resolution: resolution, resolution_values: { 1K: 1k, 2K: 2k, 4K: 4k }, seed: seed }
+
+  # https://www.atlascloud.ai/models/openai/gpt-image-2/text-to-image , .../edit (read 2026-10-04): no aspect_ratio or seed; size is WxH
+  # (1024x1024, 1536x1024, 1024x1536, 2048x2048, 2048x1152, 3840x2160, ...). Use -s WxH for other shapes.
+  gpt-image-2:
+    id: openai/gpt-image-2/text-to-image
+    edit_id: openai/gpt-image-2/edit
+    kind: image
+    billing: metered
+    description: GPT Image 2 via Atlas. Shape via -s WxH (e.g. 1536x1024); no aspect ratio or seed.
+    label_style: prose
+    refs: { identity: 4, style: 2, object: 4, location: 2 }
+    inputs: { images: images, max_images: 10, resolution: size, resolution_values: { 1K: 1024x1024, 2K: 2048x2048, 4K: 3840x2160 } }
+
+  # https://www.atlascloud.ai/models/black-forest-labs/flux-2-pro/edit (read 2026-10-04): images 1-8; size "W*H" 256-2048; seed
+  flux-2-pro:
+    id: black-forest-labs/flux-2-pro/text-to-image
+    edit_id: black-forest-labs/flux-2-pro/edit
+    kind: image
+    billing: metered
+    description: FLUX.2 Pro via Atlas. Shape via --param size=W*H (default 1024*1024).
+    label_style: prose
+    refs: { identity: 4, style: 2, object: 4, location: 2 }
+    inputs: { images: images, max_images: 8, resolution: size, resolution_values: { 1K: "1024*1024", 2K: "2048*2048" }, seed: seed }
+
+  # --- image, Atlas only ---
+  # https://www.atlascloud.ai/models/bytedance/seedream-v5.0-pro/text-to-image (read 2026-10-04): prompt + size presets "W*H" (default 2048*2048); no seed
+  seedream-5-pro:
+    id: bytedance/seedream-v5.0-pro/text-to-image
+    kind: image
+    billing: metered
+    description: ByteDance Seedream 5.0 Pro. Shape via --param size=W*H (default 2048*2048).
+    inputs: { resolution: size, resolution_values: { 2K: "2048*2048" } }
+
+  # https://www.atlascloud.ai/models/bytedance/seedream-v4.5/edit (read 2026-10-04): images 1-10; size presets; no seed
+  seedream-4.5:
+    id: bytedance/seedream-v4.5
+    edit_id: bytedance/seedream-v4.5/edit
+    kind: image
+    billing: metered
+    description: ByteDance Seedream 4.5, with editing. Shape via --param size=W*H.
+    label_style: prose
+    refs: { identity: 4, style: 2, object: 4, location: 2 }
+    inputs: { images: images, max_images: 10, resolution: size, resolution_values: { 2K: "2048*2048" } }
+
+  # --- video ---
+  # https://www.atlascloud.ai/models/google/veo3.1/text-to-video , /image-to-video , /reference-to-video (read 2026-10-04):
+  # duration 4|6|8 (r2v: 8 only); resolution 720p|1080p|4k; aspect 16:9|9:16; image + last_image;
+  # r2v images 1-3; generate_audio defaults to false on Atlas (direct Veo has audio on).
+  veo-3.1:
+    id: google/veo3.1/text-to-video
+    i2v_id: google/veo3.1/image-to-video
+    r2v_id: google/veo3.1/reference-to-video
+    kind: video
+    billing: metered
+    description: Veo 3.1 via Atlas. Audio is off unless --param generate_audio=true. Identity refs force 8 s.
+    label_style: prose
+    refs: { start: 1, end: 1, identity: 3, exclusive: [[start, identity], [end, identity]], forces: { identity: { duration: 8 }, end: { duration: 8 } } }
+    draft: { model: veo-3.1-fast }
+    inputs: { image: image, end_image: last_image, images: images, max_images: 3, duration: duration, resolution: resolution, aspect_ratio: aspect_ratio, seed: seed, negative_prompt: negative_prompt }
+
+  # https://www.atlascloud.ai/models/google/veo3.1-fast/image-to-video (read 2026-10-04): same fields as Veo 3.1 i2v
+  veo-3.1-fast:
+    id: google/veo3.1-fast/text-to-video
+    i2v_id: google/veo3.1-fast/image-to-video
+    kind: video
+    billing: metered
+    description: Veo 3.1 Fast via Atlas. Audio is off unless --param generate_audio=true.
+    label_style: prose
+    refs: { start: 1, end: 1 }
+    inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, aspect_ratio: aspect_ratio, seed: seed, negative_prompt: negative_prompt }
+
+  # https://www.atlascloud.ai/models/kwaivgi/kling-v3.0-pro/image-to-video (read 2026-10-04): image + end_image; duration 3-15;
+  # resolution 1080P|1440P-SR; no aspect_ratio or seed on i2v; references only via elements[] (use --param).
+  kling-3-pro:
+    id: kwaivgi/kling-v3.0-pro/text-to-video
+    i2v_id: kwaivgi/kling-v3.0-pro/image-to-video
+    kind: video
+    billing: metered
+    description: Kling 3.0 Pro. Cinematic motion; --param sound=true for native audio; character elements via --param elements=[...].
+    refs: { start: 1, end: 1 }
+    inputs: { image: image, end_image: end_image, duration: duration, resolution: resolution, resolution_values: { 1080p: 1080P }, negative_prompt: negative_prompt }
+
+  # https://www.atlascloud.ai/models/bytedance/seedance-2.0/image-to-video (read 2026-10-04): image + last_image; duration -1|4-15;
+  # resolution 480p..4k; aspect field is "ratio"; seed; generate_audio defaults to true.
+  seedance-2:
+    id: bytedance/seedance-2.0/text-to-video
+    i2v_id: bytedance/seedance-2.0/image-to-video
+    kind: video
+    billing: metered
+    description: Seedance 2.0. Token-billed; quotes are estimates. Draft at 480p.
+    refs: { start: 1, end: 1 }
+    draft: { resolution: 480p }
+    inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, aspect_ratio: ratio, seed: seed }
+
+  # https://www.atlascloud.ai/models/alibaba/wan-2.7/image-to-video (read 2026-10-04): image + last_image; duration 2-15;
+  # resolution 720P|1080P; no aspect field (follows the input); seed; negative_prompt.
+  wan-2.7:
+    id: alibaba/wan-2.7/text-to-video
+    i2v_id: alibaba/wan-2.7/image-to-video
+    kind: video
+    billing: metered
+    description: Wan 2.7. 2-15 s.
+    label_style: wan-numbered
+    refs: { start: 1, end: 1 }
+    inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, resolution_values: { 720p: 720P, 1080p: 1080P }, seed: seed, negative_prompt: negative_prompt }
+
+  # --- audio ---
+  # https://www.atlascloud.ai/models/minimax/music-3.0 (read 2026-10-04): prompt + lyrics (required unless is_instrumental=true); format mp3|wav
+  minimax-music-3:
+    id: minimax/music-3.0
+    kind: audio
+    billing: metered
+    description: MiniMax Music 3.0. Prompt describes the music; pass --param lyrics=... or --param is_instrumental=true.
+
+  # https://www.atlascloud.ai/models/elevenlabs/v3/text-to-speech (read 2026-10-04): text (max 5000); voice from a 21-id enum
+  elevenlabs-v3-tts:
+    id: elevenlabs/v3/text-to-speech
+    kind: audio
+    billing: metered
+    description: ElevenLabs v3 text to speech. Voice via --param voice=<voice id>.
+    inputs: { prompt: text }
+
+# Removed 2026-10-04 after verify-atlas-models.ts: ideogram/v4/quality/text-to-image
+# (price check needs an undocumented image_size_obj field) and suno/chirp-v5 (not found).
+# Not added until confirmed on a reference page: Gemini Omni Flash, Seedance 2.5,
+# Kling Omni (O3), MiniMax H3, Vidu Q3.

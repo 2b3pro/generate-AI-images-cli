@@ -5,6 +5,8 @@ import { AtlasClient, AtlasError, describeAtlasError, parseQuote } from '../src/
 import { RetryableError } from '../src/utils/jobs';
 import { extFor, outputPathFor } from '../src/utils/download';
 import { tmpDir } from './helpers/registry';
+import calculateFixture from './fixtures/atlas/calculate.json';
+import uploadFixture from './fixtures/atlas/upload.json';
 
 type Call = { url: string; init?: RequestInit };
 
@@ -102,5 +104,18 @@ describe('output naming', () => {
     expect(outputPathFor('/o/out.png', 0, 1, 'jpg')).toBe('/o/out.jpg');
     expect(outputPathFor('/o/out.png', 1, 3, 'png')).toBe('/o/out-2.png');
     expect(outputPathFor('/o/out', 0, 1, 'mp4')).toBe('/o/out.mp4');
+  });
+});
+
+describe('live response shapes (fixtures captured 2026-10-04)', () => {
+  test('parses the live /calculate shape', () => {
+    expect(parseQuote(calculateFixture)).toBe(0.08);
+  });
+
+  test('reads the live upload shape', async () => {
+    const file = path.join(tmpDir(), 'a.png');
+    fs.writeFileSync(file, 'png');
+    const { impl } = fakeFetch([json(uploadFixture)]);
+    expect(await new AtlasClient('k', impl).upload(file)).toBe('https://example.invalid/probe.png');
   });
 });

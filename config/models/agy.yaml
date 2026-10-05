@@ -1,0 +1,17 @@
+# Antigravity CLI image generation, billed against the Google plan the CLI is
+# signed in with. The CLI does not report which image model it used; a
+# 2026-10-04 run produced 1376x768 for 16:9, consistent with a Gemini 3-family
+# image model (inferred, not reported).
+
+provider: agy
+
+models:
+  agy-image:
+    id: agy default agent model
+    kind: image
+    billing: plan
+    agentic: true
+    reasoning_effort: high
+    timeout_seconds: 600
+    description: Antigravity image generation. Unpaid at the margin; generates well, weaker at restoration, slower.
+    direct_price: { usd: 0, unit: plan limits }
