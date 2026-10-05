@@ -33,3 +33,8 @@ coverage/
 *.generated.png
 *.generated.jpg
 docs/ref-*
+# Git worktrees
+.worktrees/
+
+# Plan execution scratch
+.superpowers/
