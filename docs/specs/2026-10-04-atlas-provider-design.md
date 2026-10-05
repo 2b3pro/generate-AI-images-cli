@@ -35,7 +35,8 @@ Atlas Cloud resells ~336 media models (image, video, audio) behind one async API
 6. A reproducible price comparison (`scripts/quote-table.ts`) supports each routing decision.
 7. `generate -m gpt-image-2 --via codex ...` generates or edits an image through Codex, including role-labelled reference images.
 8. `--json` prints one result object naming the provider and model that actually served the request, so callers can stamp provenance after routing.
-9. Existing model names, flags, defaults, and output paths keep working unchanged.
+9. Every model spec declares how it is paid for (`billing: metered` per call, or `billing: plan` against a subscription's limits), and `--billing plan` never reaches a metered path.
+10. Existing model names, flags, defaults, and output paths keep working unchanged.
 
 ## Non-goals
 
@@ -60,6 +61,7 @@ Atlas Cloud resells ~336 media models (image, video, audio) behind one async API
   ```
   A name declared by exactly one provider needs no entry. A name declared by several providers with no entry is a load-time error (no silent precedence).
 - `--via <provider>` selects a specific provider's spec for that name; error if that provider does not declare it.
+- `--billing plan|metered|any` (default `any`) filters the candidate specs before routing applies. When the routed provider does not match, the cheapest matching spec for the same name is used; when none matches, the command fails, names the model, and lists models that do have a matching path (e.g. "no plan-billed path for nano-banana-2; plan-billed image models: gpt-image-2 (codex)"). It never falls back across billing kinds.
 - `--list-models` shows each name once, with its active provider and the alternatives.
 
 ### Atlas YAML fields (in addition to the existing common fields)
@@ -71,6 +73,7 @@ Atlas Cloud resells ~336 media models (image, video, audio) behind one async API
 | `i2v_id` | Video model id used when `-r` is given |
 | `inputs` | Field mapping, as for Replicate: `image` (single URL field), `images` (array field), `max_images`, `end_image`, `duration`, `resolution`, `aspect_ratio`, `seed`, `negative_prompt` |
 | `resolution_values` | Map from CLI size presets to the model's enum |
+| `billing` | Required on every spec in every provider file: `metered` (charged per call) or `plan` (draws on a subscription's usage limits) |
 | `direct_price` | (optional, on direct-provider specs) list price used by the quote table: `{ usd, unit, source, checked }` |
 
 Every Atlas id is copied from the model's own reference page, not from guide examples.
@@ -112,6 +115,7 @@ interface JobRecord {
 | `--resume <id>` | Continue polling a recorded job and download its outputs |
 | `--jobs` | List job records (pending first) and exit |
 | `--param key=value` | Repeatable; sets a model-specific top-level request field (Atlas) |
+| `--billing <plan\|metered\|any>` | Restrict to plan-billed (subscription limits) or metered (per-call) paths; see Registry |
 | `--json` | Print a single JSON result to stdout (progress goes to stderr); see below |
 | `--reference-note <i>=<text>` | Repeatable; states what reference image *i* is for (e.g. `1=face of the man in the centre only`). Codex puts it next to the path; API providers append it to the prompt |
 
@@ -119,7 +123,7 @@ interface JobRecord {
 
 ```json
 { "ok": true, "provider": "atlas", "model": "nano-banana-2", "provider_model_id": "google/nano-banana-2/edit",
-  "outputs": ["/abs/path.png"], "job_id": "abc123", "quote_usd": 0.04, "agentic": false,
+  "outputs": ["/abs/path.png"], "job_id": "abc123", "quote_usd": 0.04, "billing": "metered", "agentic": false,
   "error": null, "exit_code": 0 }
 ```
 
@@ -136,7 +140,7 @@ Mechanics copied from a field-tested restoration script (v1.6.0, ~300 production
 - Invocation: `codex exec --ephemeral --model <agent_model> --config model_reasoning_effort="<effort>" --sandbox workspace-write --skip-git-repo-check --cd <output dir>`.
 - Success is decided by the file, never by parsing agent prose: the staged PNG must exist and be non-empty; it is converted to the requested format (`sips`, else ImageMagick) and its real MIME type verified. The stage directory is always removed.
 - Synchronous: no job record or `--resume`. A timeout kills the process; the run may still have consumed plan usage, which the error message says.
-- `config/models/codex.yaml` declares `gpt-image-2` (shared canonical name) with `agentic: true` and `direct_price: { usd: 0, unit: "plan limits" }`.
+- `config/models/codex.yaml` declares `gpt-image-2` (shared canonical name) with `agentic: true`, `billing: plan`, and `direct_price: { usd: 0, unit: "plan limits" }`. Plan usage is shared with every other use of the same Codex account, which the quote table notes.
 
 ### Atlas provider (`src/providers/atlas.ts`)
 
@@ -193,6 +197,7 @@ For each canonical name declared by both Atlas and a direct provider: quote Atla
 | 6 | Codex is a provider, not a caller-side special case | Its cost profile (plan limits, no per-call bill) belongs in the same routing table as everything else |
 | 7 | Codex success judged by the staged file, never agent prose | Prose-scraping an output path is how an earlier CLI route broke |
 | 8 | `--json` result names the serving provider/model | After routing, only the backend knows what actually ran |
+| 9 | Billing kind is declared per spec and filterable, never inferred from price | A caller choosing an unpaid path must get a guarantee, not a best effort; a $0 quote is not the same claim as "no per-call charge" |
 
 ## Appendix B: Files expected to change
 
