@@ -57,7 +57,7 @@ describe('selection', () => {
   });
 
   test('billing metered skips a plan-routed name and takes the cheapest metered offer', () => {
-    writeRegistry(FIXTURE_FILES, 'img-shared: codex\nvid-shared: atlas\n');
+    writeRegistry(FIXTURE_FILES, 'img-shared: codex\nvid-shared: atlas\nshared-lite: atlas\n');
     expect(selectSpec('img-shared', { billing: 'metered' }).provider).toBe('google');
   });
 });

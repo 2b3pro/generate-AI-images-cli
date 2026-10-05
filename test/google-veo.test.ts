@@ -64,3 +64,17 @@ describe('Veo jobs', () => {
     expect(calls.generate).toBe(0);
   });
 });
+
+describe('review fixes', () => {
+  test('a poll error after submit keeps the job id and says how to resume', async () => {
+    const client = {
+      models: { generateVideos: async () => ({ name: 'models/veo/operations/op9', done: false }) },
+      operations: { getVideosOperation: async () => { throw Object.assign(new Error('not found'), { status: 404 }); } },
+      files: { download: async () => undefined },
+    } as unknown as GoogleGenAI;
+    const result = await new GoogleProvider(client).generate({ model: 'veo-3.1-lite', prompt: 'rain', output: path.join(tmpDir(), 'v.mp4'), waitSeconds: 30 });
+    expect(result.pending).toBe(true);
+    expect(result.jobId).toBe('models/veo/operations/op9');
+    expect(result.error).toMatch(/generate --resume models\/veo\/operations\/op9/);
+  });
+});

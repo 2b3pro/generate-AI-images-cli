@@ -6,7 +6,9 @@
 #   STUB_EXIT       exit code (default 0)
 #   STUB_NO_FILE    if set, write nothing
 #   STUB_SLEEP      seconds to sleep before acting
+#   STUB_ENV_FILE   if set, write the agent's environment variable names there
 [ -n "$STUB_SLEEP" ] && sleep "$STUB_SLEEP"
+[ -n "$STUB_ENV_FILE" ] && env | cut -d= -f1 > "$STUB_ENV_FILE"
 { echo "cwd=$(pwd -P)"; for a in "$@"; do echo "$a"; done; } >> "${STUB_ARGS_FILE:-/dev/null}"
 PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 if [ "$STUB_MODE" = "codex" ]; then

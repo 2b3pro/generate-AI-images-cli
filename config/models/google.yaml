@@ -5,6 +5,7 @@
 # Each key under `models:` is the name you pass to `generate -m <name>`.
 #   id            Model identifier sent to the Gemini API (defaults to the key).
 #   kind          image | video   (default: image)
+#   draft         cheaper preview tier for --draft: { model } or { resolution }
 #   billing       metered (charged per call) | plan (subscription usage limits). Required.
 #   description   Shown by `generate --list-models`.
 #   aliases       Extra names accepted by --model (the raw `id` also resolves).
@@ -58,6 +59,7 @@ models:
     id: veo-3.1-generate-preview
     kind: video
     billing: metered
+    draft: { model: veo-3.1-lite }
     direct_price: { usd: 0.40, unit: second, source: "https://ai.google.dev/gemini-api/docs/pricing (720p/1080p with audio)", checked: 2026-10-04 }
     description: Veo 3.1. Cinematic 720p/1080p/4k video, 16:9 or 9:16, 4-8s, image-to-video via -r.
     aliases: [veo, veo-3.1-generate-preview]
@@ -67,6 +69,7 @@ models:
     id: veo-3.1-fast-generate-preview
     kind: video
     billing: metered
+    draft: { model: veo-3.1-lite }
     direct_price: { usd: 0.10, unit: second, source: "https://ai.google.dev/gemini-api/docs/pricing (720p with audio; 1080p is 0.12)", checked: 2026-10-04 }
     description: Veo 3.1 Fast. Same features as Veo 3.1 with lower latency.
     aliases: [veo-fast, veo-3.1-fast-generate-preview]

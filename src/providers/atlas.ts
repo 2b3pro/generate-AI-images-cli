@@ -24,6 +24,15 @@ export function buildAtlasRequest(
   const end = uploaded.refs.find((r) => r.role === 'end');
   const others = uploaded.refs.filter((r) => r.role !== 'start' && r.role !== 'end');
 
+  if (spec.kind === 'video') {
+    if (uploaded.legacy.length > 1) throw new Error(`${where} takes one start frame; got ${uploaded.legacy.length} -r images (use --ref for other roles)`);
+    if (uploaded.legacy.length === 1 && start) throw new Error(`${where} got both -r and --ref start; give the start frame once`);
+  }
+  if (spec.kind === 'image' && inputs.max_images !== undefined) {
+    const total = others.length + uploaded.legacy.length;
+    if (total > inputs.max_images) throw new Error(`${where} accepts at most ${inputs.max_images} reference images; got ${total}`);
+  }
+
   let modelId = spec.id;
   if (spec.kind === 'image' && (others.length > 0 || uploaded.legacy.length > 0)) {
     if (!spec.edit_id) throw new Error(`${where} has no edit variant for reference images`);
@@ -66,7 +75,7 @@ export function buildAtlasRequest(
 
   const imageList = [...others.map((r) => r.url), ...(spec.kind === 'image' ? uploaded.legacy : [])];
   if (imageList.length > 0) {
-    if (inputs.images) body[inputs.images] = imageList.slice(0, inputs.max_images ?? imageList.length);
+    if (inputs.images) body[inputs.images] = imageList;
     else if (inputs.image && spec.kind === 'image') body[inputs.image] = imageList[0];
     else throw new Error(`${where} has no reference-image field configured`);
   }
@@ -158,7 +167,11 @@ export class AtlasProvider extends BaseProvider {
       provider_model_id: modelId,
       request,
     };
-    writeJob(record);
+    try {
+      writeJob(record);
+    } catch (err) {
+      return { success: false, jobId: id, providerModelId: modelId, request, error: `Submitted as Atlas job ${id}, but the job record could not be written (${(err as Error).message}). Do not resubmit; check the Atlas dashboard for ${id}.` };
+    }
     if (options.noWait) return { success: false, pending: true, jobId: id, providerModelId: modelId, request };
     return this.finish(record, options);
   }
@@ -167,7 +180,23 @@ export class AtlasProvider extends BaseProvider {
     return this.finish(record, opts);
   }
 
+  /** Never throws: any error after submit returns the job id with a resume hint, so nobody pays twice. */
   private async finish(record: JobRecord, opts: { waitSeconds?: number; onProgress?: (status: string) => void }): Promise<GenerationResult> {
+    try {
+      return await this.finishOrThrow(record, opts);
+    } catch (err) {
+      return {
+        jobId: record.id,
+        providerModelId: record.provider_model_id,
+        request: record.request,
+        success: false,
+        pending: true,
+        error: `Job ${record.id} was submitted but could not be completed here (${(err as Error).message}). Do not resubmit; resume with: generate --resume ${record.id}`,
+      };
+    }
+  }
+
+  private async finishOrThrow(record: JobRecord, opts: { waitSeconds?: number; onProgress?: (status: string) => void }): Promise<GenerationResult> {
     const base = { jobId: record.id, providerModelId: record.provider_model_id, request: record.request };
     const state = await waitForJob(() => this.client.poll(record.id), {
       waitSeconds: opts.waitSeconds ?? DEFAULT_WAIT_SECONDS[record.kind],

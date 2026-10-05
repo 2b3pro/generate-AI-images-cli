@@ -192,9 +192,13 @@ export class GoogleProvider extends BaseProvider {
           draft: Boolean(options.draft),
         },
       };
-      writeJob(record);
+      try {
+        writeJob(record);
+      } catch (err) {
+        return { success: false, jobId: record.id, error: `Submitted as Veo operation ${record.id}, but the job record could not be written (${(err as Error).message}). Do not resubmit.` };
+      }
       if (options.noWait) return { success: false, pending: true, jobId: record.id, providerModelId: modelName, request: record.request };
-      return await this.waitVeo(operation, record, options);
+      return await this.waitVeoSafely(operation, record, options);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 
@@ -215,6 +219,26 @@ export class GoogleProvider extends BaseProvider {
       return {
         success: false,
         error: errorMessage,
+      };
+    }
+  }
+
+  /** Never throws: any error after submit returns the job id with a resume hint, so nobody pays twice. */
+  private async waitVeoSafely(
+    op: GenerateVideosOperation,
+    record: JobRecord,
+    opts: { waitSeconds?: number; onProgress?: (status: string) => void }
+  ): Promise<GenerationResult> {
+    try {
+      return await this.waitVeo(op, record, opts);
+    } catch (err) {
+      return {
+        success: false,
+        pending: true,
+        jobId: record.id,
+        providerModelId: record.provider_model_id,
+        request: record.request,
+        error: `Veo operation ${record.id} was submitted but could not be completed here (${(err as Error).message}). Do not resubmit; resume with: generate --resume ${record.id}`,
       };
     }
   }
@@ -278,7 +302,7 @@ export class GoogleProvider extends BaseProvider {
     }
     const op = new GenerateVideosOperation();
     op.name = record.id;
-    return this.waitVeo(op, record, opts);
+    return this.waitVeoSafely(op, record, opts);
   }
 
   async generate(options: GenerateOptions): Promise<GenerationResult> {

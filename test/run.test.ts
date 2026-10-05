@@ -148,3 +148,61 @@ test('draftPath', () => {
   expect(draftPath('/a/b.mp4')).toBe('/a/b.draft.mp4');
   expect(draftPath('/a/b')).toBe('/a/b.draft');
 });
+
+import path from 'path';
+import { runVariations } from '../src/run';
+
+describe('review fixes', () => {
+  test('--draft keeps the provider the user chose when it offers the draft model', async () => {
+    const google = new FakeProvider();
+    await run(req({ modelInput: 'vid-draftable', via: 'google', draft: true }, { output: '/tmp/c.mp4' }), deps({ google }));
+    expect(google.calls.generate[0].model).toBe('shared-lite');
+  });
+
+  test('output paths are made absolute before reaching the provider', async () => {
+    const google = new FakeProvider();
+    await run(req({}, { output: 'rel/out.png' }), deps({ google }));
+    expect(google.calls.generate[0].output).toBe(path.resolve('rel/out.png'));
+  });
+
+  test('variations: --max-cost covers the whole batch', async () => {
+    const atlas = new FakeProvider(undefined, 0.3).withQuote();
+    const json = await runVariations(req({ via: 'atlas', maxCost: 1 }), 5, deps({ atlas }));
+    expect(json.exit_code).toBe(2);
+    expect(json.error).toMatch(/5 variations/);
+    expect(atlas.calls.generate).toHaveLength(0);
+  });
+
+  test('variations: a failure keeps the outputs already paid for', async () => {
+    let n = 0;
+    const google = new FakeProvider();
+    google.generate = async (o) => { n++; google.calls.generate.push(o); return n < 3 ? { success: true, outputPath: o.output } : { success: false, error: 'quota' }; };
+    const json = await runVariations(req({}, { output: '/tmp/v.png' }), 4, deps({ google }));
+    expect(json.exit_code).toBe(1);
+    expect(json.outputs).toEqual(['/tmp/v-v1.png', '/tmp/v-v2.png']);
+    expect(n).toBe(3);
+  });
+
+  test('variations: extensionless output keeps the legacy default extension', async () => {
+    const google = new FakeProvider();
+    google.generate = async (o) => { google.calls.generate.push(o); return { success: true, outputPath: o.output }; };
+    const json = await runVariations(req({}, { output: '/tmp/out' }), 2, deps({ google }));
+    expect(json.outputs).toEqual(['/tmp/out-v1.png', '/tmp/out-v2.png']);
+  });
+
+  test('variations: --no-wait cannot be combined with more than one variation', async () => {
+    const json = await runVariations(req({}, { noWait: true }), 3, deps({ google: new FakeProvider() }));
+    expect(json.exit_code).toBe(2);
+    expect(json.error).toMatch(/--no-wait/);
+  });
+});
+
+describe('real config drafts', () => {
+  test('the documented `-m veo-3.1 --draft` works and stays on google', async () => {
+    useRealRegistry();
+    const google = new FakeProvider();
+    const json = await run(req({ modelInput: 'veo-3.1', draft: true }, { output: '/tmp/w.mp4' }), deps({ google }));
+    expect(json.exit_code).toBe(0);
+    expect(google.calls.generate[0].model).toBe('veo-3.1-lite');
+  });
+});

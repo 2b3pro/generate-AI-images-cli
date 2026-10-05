@@ -41,15 +41,39 @@ export function buildAgentPrompt(o: { lead: string; primary?: string; refs: { pa
   return lines.join('\n');
 }
 
+/**
+ * Per-call API keys removed from an agent's environment. Agent providers are
+ * plan-billed; with these present, an agent (or a tool it calls) could bill a
+ * metered key instead, silently breaking the --billing plan guarantee.
+ */
+export const METERED_KEYS = [
+  'OPENAI_API_KEY',
+  'OPENAI_PROJECT_API_KEY',
+  'GEMINI_API_KEY',
+  'GOOGLE_API_KEY',
+  'NANOBANANA_API_KEY',
+  'ATLASCLOUD_API_KEY',
+  'REPLICATE_API_TOKEN',
+  'REPLICATE_API_KEY',
+  'REMOVE_BG_API_KEY',
+  'ANTHROPIC_API_KEY',
+];
+
+export function agentEnv(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(source)) if (v !== undefined && !METERED_KEYS.includes(k)) env[k] = v;
+  return env;
+}
+
 export async function runAgent(cmd: string, args: string[], o: { cwd: string; stdin?: string; timeoutMs: number }): Promise<{ code: number; timedOut: boolean; stderrTail: string }> {
   // Own process group (detached) so a timeout can kill the agent and every
   // child it started; a bare SIGTERM to the agent can be deferred while a child
   // runs, and orphaned children keep stderr open. The live environment is passed
   // explicitly because Bun.spawn's default does not reflect process.env changes
-  // made after startup.
+  // made after startup, minus metered API keys (see METERED_KEYS).
   const proc = Bun.spawn([cmd, ...args], {
     cwd: o.cwd,
-    env: { ...process.env },
+    env: agentEnv(),
     detached: true,
     stdin: o.stdin !== undefined ? 'pipe' : 'ignore',
     stdout: 'ignore',

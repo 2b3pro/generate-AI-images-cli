@@ -127,3 +127,35 @@ describe('AtlasProvider jobs', () => {
     expect(s.posts.some((u) => u.includes('/generate'))).toBe(false);
   });
 });
+
+describe('review fixes', () => {
+  test('a failure after submit keeps the job id and says how to resume', async () => {
+    const s = scripted([
+      json({ data: { id: 'pred-9' } }),
+      json({ data: { status: 'completed', outputs: ['https://cdn/x/r.png'] } }),
+      new Response('denied', { status: 403 }),
+    ]);
+    const result = await new AtlasProvider(new AtlasClient('k', s.impl)).generate({ model: 'img-shared', prompt: 'cat', output: path.join(tmpDir(), 'o.png'), waitSeconds: 30 });
+    expect(result.success).toBe(false);
+    expect(result.pending).toBe(true);
+    expect(result.jobId).toBe('pred-9');
+    expect(result.error).toMatch(/generate --resume pred-9/);
+    expect(s.posts.filter((u) => u.includes('/generate'))).toHaveLength(1);
+  });
+
+  test('legacy -r beyond the model cap is rejected before submit, not silently dropped', async () => {
+    const dir = tmpDir();
+    const files = ['a', 'b', 'c', 'd'].map((n) => { const f = path.join(dir, `${n}.png`); fs.writeFileSync(f, 'x'); return f; });
+    const s = scripted([json({ url: 'https://t/a' }), json({ url: 'https://t/b' }), json({ url: 'https://t/c' }), json({ url: 'https://t/d' })]);
+    const result = await new AtlasProvider(new AtlasClient('k', s.impl)).generate({ model: 'img-shared', prompt: 'x', referenceImages: files, output: path.join(dir, 'o.png') });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/at most 3 reference images; got 4/);
+    expect(s.posts.some((u) => u.includes('/generate'))).toBe(false);
+  });
+
+  test('video takes one legacy -r frame and not alongside --ref start', () => {
+    const spec = getModelSpec('vid-shared', 'atlas');
+    expect(() => buildAtlasRequest(spec, { model: 'vid-shared', prompt: 'p' }, { legacy: ['https://u/1', 'https://u/2'], refs: [] })).toThrow(/one start frame/);
+    expect(() => buildAtlasRequest(spec, { model: 'vid-shared', prompt: 'p' }, { legacy: ['https://u/1'], refs: [{ role: 'start', source: 's', url: 'https://u/s' }] })).toThrow(/both -r and --ref start/);
+  });
+});

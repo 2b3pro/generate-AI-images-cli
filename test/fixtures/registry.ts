@@ -18,6 +18,15 @@ models:
     kind: video
     billing: metered
     direct_price: { usd: 0.05, unit: second }
+  vid-draftable:
+    id: g-vid-draftable
+    kind: video
+    billing: metered
+    draft: { model: shared-lite }
+  shared-lite:
+    id: g-shared-lite
+    kind: video
+    billing: metered
 `,
   'atlas.yaml': `
 provider: atlas
@@ -40,6 +49,10 @@ models:
     refs: { start: 1, end: 1, identity: 3, exclusive: [[start, identity], [end, identity]], forces: { identity: { duration: 8 } }, max_people_warning: 2 }
     draft: { resolution: 480p }
     inputs: { image: image, end_image: end_image, images: reference_images, duration: duration, resolution: resolution, seed: seed, negative_prompt: negative_prompt }
+  shared-lite:
+    id: vendor/shared-lite
+    kind: video
+    billing: metered
   tts-only:
     id: vendor/tts
     kind: audio
@@ -71,4 +84,5 @@ models:
 export const FIXTURE_ROUTING = `
 img-shared: google
 vid-shared: atlas
+shared-lite: atlas
 `;

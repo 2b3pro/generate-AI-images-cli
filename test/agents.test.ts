@@ -98,3 +98,23 @@ describe('agy', () => {
     expect(leftovers(dir)).toEqual([]);
   });
 });
+
+describe('review fixes', () => {
+  test('agents never see metered API keys, so plan billing cannot fall through to them', async () => {
+    process.env.STUB_MODE = 'codex';
+    const envFile = path.join(tmpDir(), 'env.txt');
+    process.env.STUB_ENV_FILE = envFile;
+    const keys = ['OPENAI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'ATLASCLOUD_API_KEY', 'REPLICATE_API_TOKEN', 'NANOBANANA_API_KEY'];
+    for (const k of keys) process.env[k] = 'secret';
+    try {
+      const result = await new CodexProvider().generate({ model: 'img-shared', prompt: 'x', output: path.join(tmpDir(), 'o.png') });
+      expect(result.success).toBe(true);
+      const names = fs.readFileSync(envFile, 'utf8').split('\n');
+      for (const k of keys) expect(names).not.toContain(k);
+      expect(names).toContain('PATH');
+    } finally {
+      for (const k of keys) delete process.env[k];
+      delete process.env.STUB_ENV_FILE;
+    }
+  });
+});

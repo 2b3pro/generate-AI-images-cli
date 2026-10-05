@@ -5,8 +5,7 @@ import ora from 'ora';
 import { spawn } from 'child_process';
 import type { Ora } from 'ora';
 import { getOrCreateProvider, listModels } from './providers';
-import { removeBackground, addBackgroundColor } from './utils/background';
-import { generateThumbnail } from './utils/thumbnail';
+import { postProcess } from './postprocess';
 import type { AspectRatio, Provider, RoleRef } from './types';
 import { DEFAULT_OPTIONS } from './types';
 import { getModelSpec, listModelSpecs, loadModelRegistry, modelsConfigDir, resolveModel } from './config/models';
@@ -14,7 +13,7 @@ import { attachNotes, parseRefArg } from './refs';
 import { parseParams } from './params';
 import { listJobs } from './utils/jobs';
 import { stampProvenance } from './utils/provenance';
-import { resumeJob, run, type ResultJson, type RunDeps } from './run';
+import { resumeJob, runVariations, type ResultJson, type RunDeps } from './run';
 import pkg from '../package.json';
 
 // Load config/models/*.yaml up front so a broken or missing config fails with
@@ -242,73 +241,51 @@ program
     if (kind === 'video' && /\.(png|jpg|jpeg|webp)$/i.test(outputPath)) outputPath = outputPath.replace(/\.(png|jpg|jpeg|webp)$/i, '.mp4');
     if (kind === 'audio' && /\.(png|jpg|jpeg|webp|mp4)$/i.test(outputPath)) outputPath = outputPath.replace(/\.(png|jpg|jpeg|webp|mp4)$/i, '.mp3');
 
-    const variationCount = kind === 'image' && !opts.quote ? opts.variations || 1 : 1;
-    const ext = outputPath.match(/\.[A-Za-z0-9]+$/)?.[0] || '';
-    const basePath = ext ? outputPath.slice(0, -ext.length) : outputPath;
-
-    const merged: string[] = [];
-    let last: ResultJson | undefined;
-    for (let i = 1; i <= variationCount; i++) {
-      const itemOutput = variationCount > 1 ? `${basePath}-v${i}${ext}` : outputPath;
-      if (variationCount > 1) onProgress(`Generating variation ${i}/${variationCount}...`);
-      last = await run(
-        {
-          modelInput: opts.model,
-          via: opts.via as Provider | undefined,
-          billing: opts.billing,
-          draft: Boolean(opts.draft),
-          quoteOnly: Boolean(opts.quote),
-          maxCost: opts.maxCost,
-          options: {
-            prompt,
-            size: opts.size,
-            resolution: opts.resolution,
-            duration: opts.duration,
-            fps: opts.fps,
-            aspectRatio: opts.aspectRatio as AspectRatio,
-            output: itemOutput,
-            referenceImages: opts.reference,
-            refs,
-            params,
-            transparent: opts.transparent,
-            removeBg: opts.removeBg,
-            addBg: opts.addBg,
-            negativePrompt: opts.negativePrompt,
-            thumbnail: opts.thumbnail,
-            seed: opts.seed,
-            steps: opts.steps,
-            guidance: opts.guidance,
-            quality: opts.quality,
-            style: opts.style,
-            numImages: opts.numImages,
-            useApi: opts.api,
-            waitSeconds,
-            noWait,
-            onProgress,
-          },
+    const variationCount = kind === 'image' ? opts.variations || 1 : 1;
+    const result = await runVariations(
+      {
+        modelInput: opts.model,
+        via: opts.via as Provider | undefined,
+        billing: opts.billing,
+        draft: Boolean(opts.draft),
+        quoteOnly: Boolean(opts.quote),
+        maxCost: opts.maxCost,
+        options: {
+          prompt,
+          size: opts.size,
+          resolution: opts.resolution,
+          duration: opts.duration,
+          fps: opts.fps,
+          aspectRatio: opts.aspectRatio as AspectRatio,
+          output: outputPath,
+          referenceImages: opts.reference,
+          refs,
+          params,
+          transparent: opts.transparent,
+          removeBg: opts.removeBg,
+          addBg: opts.addBg,
+          negativePrompt: opts.negativePrompt,
+          thumbnail: opts.thumbnail,
+          seed: opts.seed,
+          steps: opts.steps,
+          guidance: opts.guidance,
+          quality: opts.quality,
+          style: opts.style,
+          numImages: opts.numImages,
+          useApi: opts.api,
+          waitSeconds,
+          noWait,
+          onProgress,
         },
-        deps
-      );
-      if (!last.ok || last.pending || opts.quote) emitResult(last, jsonMode, spinner);
-
-      for (const file of last.outputs) {
-        if (!/\.(png|jpe?g|webp)$/i.test(file)) continue;
-        if (opts.removeBg) {
-          onProgress('Removing background...');
-          await removeBackground(file, file);
-        }
-        if (opts.addBg) {
-          onProgress('Adding background color...');
-          await addBackgroundColor(file, file, opts.addBg);
-        }
-        if (opts.thumbnail) {
-          onProgress('Generating thumbnail...');
-          await generateThumbnail(file, { size: typeof opts.thumbnail === 'number' ? opts.thumbnail : 256 });
-        }
-      }
-      merged.push(...last.outputs);
+      },
+      variationCount,
+      deps
+    );
+    if (result.ok && !result.pending && !opts.quote) {
+      const error = await postProcess(result.outputs, { removeBg: opts.removeBg, addBg: opts.addBg, thumbnail: opts.thumbnail }, onProgress);
+      if (error) emitResult({ ...result, ok: false, exit_code: 1, error }, jsonMode, spinner);
     }
-    emitResult({ ...last!, outputs: merged }, jsonMode, spinner);
+    emitResult(result, jsonMode, spinner);
   });
 
 function rejected(code: 1 | 2, error: string): ResultJson {

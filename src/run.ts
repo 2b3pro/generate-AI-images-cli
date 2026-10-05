@@ -1,6 +1,6 @@
 import path from 'path';
 import type { Billing, GenerateOptions, GenerationResult, ImageProvider, ModelSpec, Provider, RequestRecord } from './types';
-import { resolveModel, selectSpec, type BillingFilter } from './config/models';
+import { getModelSpec, resolveModel, selectSpec, type BillingFilter } from './config/models';
 import { validateRefs } from './refs';
 import { priceFor } from './cost';
 import { readJob } from './utils/jobs';
@@ -72,12 +72,20 @@ export async function run(req: RunRequest, deps: RunDeps): Promise<ResultJson> {
   }
 
   const options: GenerateOptions = { ...req.options, model: spec.name };
+  // Absolute, so a job record resumed from another directory writes to the same place.
+  if (options.output) options.output = path.resolve(options.output);
   if (req.draft) {
     const tier = spec.draft;
     if (!tier) return fail(json, 2, `${spec.name} (${spec.provider}) has no draft tier`);
     if (tier.model) {
       try {
-        spec = selectSpec(resolveModel(tier.model), { billing: req.billing });
+        const draftName = resolveModel(tier.model);
+        // Stay with the provider the user chose (or routing chose) when it offers the draft model.
+        try {
+          spec = selectSpec(draftName, { via: spec.provider, billing: req.billing });
+        } catch {
+          spec = selectSpec(draftName, { billing: req.billing });
+        }
       } catch (err) {
         return fail(json, 2, message(err));
       }
@@ -145,6 +153,53 @@ async function finish(json: ResultJson, result: GenerationResult, noWait: boolea
     }
   }
   return json;
+}
+
+const DEFAULT_EXT = { image: '.png', video: '.mp4', audio: '.mp3' } as const;
+
+/**
+ * Run `count` variations of one request. The price gate covers the whole
+ * batch, a failure stops the batch but keeps the outputs already paid for,
+ * and --no-wait is refused for batches (one job id per result).
+ */
+export async function runVariations(req: RunRequest, count: number, deps: RunDeps): Promise<ResultJson> {
+  if (count <= 1) return run(req, deps);
+  if (req.options.noWait) return fail(emptyResult(), 2, '--no-wait cannot be combined with --variations above 1; submit variations one at a time');
+
+  if (req.quoteOnly) {
+    const quoted = await run(req, deps);
+    return quoted.quote_usd === null ? quoted : { ...quoted, quote_usd: quoted.quote_usd * count };
+  }
+  if (req.maxCost !== undefined) {
+    const quoted = await run({ ...req, quoteOnly: true, maxCost: undefined }, deps);
+    if (quoted.quote_usd === null) {
+      return fail(quoted, 2, `--max-cost is set but no price is available for ${quoted.model ?? req.modelInput}; nothing was sent`);
+    }
+    const total = quoted.quote_usd * count;
+    if (total > req.maxCost) {
+      return fail({ ...quoted, quote_usd: total }, 2, `price $${total.toFixed(4)} for ${count} variations exceeds --max-cost $${req.maxCost}; nothing was sent`);
+    }
+  }
+
+  let kind: keyof typeof DEFAULT_EXT = 'image';
+  try {
+    kind = getModelSpec(resolveModel(req.modelInput)).kind;
+  } catch {
+    return run(req, deps);
+  }
+  const requested = req.options.output ?? '';
+  const ext = path.extname(requested) || DEFAULT_EXT[kind];
+  const base = path.extname(requested) ? requested.slice(0, -ext.length) : requested;
+
+  const merged: string[] = [];
+  let last: ResultJson | undefined;
+  for (let i = 1; i <= count; i++) {
+    req.options.onProgress?.(`Generating variation ${i}/${count}...`);
+    last = await run({ ...req, maxCost: undefined, options: { ...req.options, output: `${base}-v${i}${ext}` } }, deps);
+    if (!last.ok || last.pending) return { ...last, outputs: [...merged, ...last.outputs] };
+    merged.push(...last.outputs);
+  }
+  return { ...last!, outputs: merged };
 }
 
 export async function resumeJob(id: string, opts: { waitSeconds?: number; onProgress?: (s: string) => void }, deps: RunDeps): Promise<ResultJson> {
