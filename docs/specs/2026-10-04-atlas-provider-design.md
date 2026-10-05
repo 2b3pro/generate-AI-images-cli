@@ -61,7 +61,7 @@ Atlas Cloud resells ~336 media models (image, video, audio) behind one async API
   ```
   A name declared by exactly one provider needs no entry. A name declared by several providers with no entry is a load-time error (no silent precedence).
 - `--via <provider>` selects a specific provider's spec for that name; error if that provider does not declare it.
-- `--billing plan|metered|any` (default `any`) filters the candidate specs before routing applies. When the routed provider does not match, the cheapest matching spec for the same name is used; when none matches, the command fails, names the model, and lists models that do have a matching path (e.g. "no plan-billed path for nano-banana-2; plan-billed image models: gpt-image-2 (codex)"). It never falls back across billing kinds.
+- `--billing plan|metered|any` (default `any`) filters the candidate specs before routing applies. When the routed provider does not match, the cheapest matching spec for the same name is used; when none matches, the command fails, names the model, and lists models that do have a matching path (e.g. "no plan-billed path for nano-banana-2; plan-billed image models: gpt-image-2 (codex)"). It never falls back across billing kinds. Video models are always `metered`; a `plan` spec with `kind: video` is a load-time error.
 - `--list-models` shows each name once, with its active provider and the alternatives.
 
 ### Atlas YAML fields (in addition to the existing common fields)
