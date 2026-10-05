@@ -2,12 +2,19 @@
 import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { getProviderForModel, listModels } from './providers';
+import { spawn } from 'child_process';
+import type { Ora } from 'ora';
+import { getOrCreateProvider, listModels } from './providers';
 import { removeBackground, addBackgroundColor } from './utils/background';
 import { generateThumbnail } from './utils/thumbnail';
-import type { GenerateOptions, Model, AspectRatio } from './types';
+import type { AspectRatio, Provider, RoleRef } from './types';
 import { DEFAULT_OPTIONS } from './types';
-import { getModelSpec, isVideoModel, listModelSpecs, loadModelRegistry, modelsConfigDir, resolveModel } from './config/models';
+import { getModelSpec, listModelSpecs, loadModelRegistry, modelsConfigDir, resolveModel } from './config/models';
+import { attachNotes, parseRefArg } from './refs';
+import { parseParams } from './params';
+import { listJobs } from './utils/jobs';
+import { stampProvenance } from './utils/provenance';
+import { resumeJob, run, type ResultJson, type RunDeps } from './run';
 import pkg from '../package.json';
 
 // Load config/models/*.yaml up front so a broken or missing config fails with
@@ -63,6 +70,25 @@ if (process.argv.includes('--list-models')) {
   }
   process.exit(0);
 }
+
+if (process.argv.includes('--jobs')) {
+  const jobs = listJobs();
+  if (process.argv.includes('--json')) {
+    process.stdout.write(JSON.stringify(jobs) + '\n');
+  } else if (jobs.length === 0) {
+    console.log('No recorded jobs.');
+  } else {
+    for (const j of jobs) {
+      const status = j.status === 'pending' ? chalk.yellow(j.status) : j.status === 'failed' ? chalk.red(j.status) : chalk.green(j.status);
+      console.log(`${status}  ${j.submittedAt}  ${j.provider}/${j.model}  ${j.id}`);
+      if (j.outputs?.length) console.log(chalk.dim(`    ${j.outputs.join(', ')}`));
+      if (j.error) console.log(chalk.dim(`    ${j.error.message}`));
+    }
+  }
+  process.exit(0);
+}
+
+const collect = (value: string, previous: string[]) => [...previous, value];
 
 const MODEL_NAMES = listModelSpecs().map((m) => m.name).join(', ');
 
@@ -153,167 +179,183 @@ program
   .option('--num-images <number>', 'Number of images to generate', parseInt, DEFAULT_OPTIONS.numImages)
   .option('--api', '(deprecated, no-op) Gemini API is now the only image route')
   .option('--list-models', 'List available models and exit')
+  .option('--via <provider>', 'Use this provider for the model (see "also via" in --list-models)')
+  .addOption(new Option('--billing <kind>', 'plan = subscription limits only; metered = per-call only').choices(['plan', 'metered', 'any']).default('any'))
+  .option('--quote', 'Print the price of this request and exit without generating')
+  .option('--max-cost <usd>', 'Refuse to submit if the price exceeds this many US dollars', parseFloat)
+  .option('--wait <seconds>', 'Seconds to wait for an async job before printing a resume command', parseInt)
+  .option('--no-wait', 'Submit, record the job, print its id, and exit')
+  .option('--resume <id>', 'Finish a recorded job and download its outputs')
+  .option('--jobs', 'List recorded jobs and exit')
+  .option('--param <key=value>', 'Model-specific request field; repeatable', collect, [])
+  .option('--ref <role=path>', 'Role-typed reference (start|end|identity|style|object|location); repeatable', collect, [])
+  .option('--ref-note <n=text>', 'What the n-th --ref is for; repeatable', collect, [])
+  .option('--draft', "Run on the model's cheaper draft tier; output gets a .draft suffix")
+  .option('--json', 'Print one JSON result to stdout; progress goes to stderr')
   .action(async (promptArgs: string[], opts) => {
+    const jsonMode = Boolean(opts.json);
+    const waitSeconds = typeof opts.wait === 'number' ? opts.wait : undefined;
+    const noWait = opts.wait === false;
+    const deps: RunDeps = { getProvider: getOrCreateProvider, stamp: stampProvenance };
+    const spinner = ora({ text: 'Working...', spinner: 'dots', isSilent: jsonMode }).start();
+    const onProgress = (status: string) => {
+      spinner.text = status;
+    };
+
+    if (opts.resume) {
+      emitResult(await resumeJob(opts.resume, { waitSeconds, onProgress }, deps), jsonMode, spinner);
+    }
+
     const cliPrompt = promptArgs.length > 0 ? promptArgs.join(' ') : (opts.prompt || '');
     const stdinPrompt = await readStdinIfAvailable(Boolean(cliPrompt));
-
-    // Combine: stdin + CLI with XML-like structure for clarity
     let prompt: string;
     if (stdinPrompt && cliPrompt) {
       prompt = `<prompt>\n${stdinPrompt}\n</prompt>\n\n<additional_guidance>\n${cliPrompt}\n</additional_guidance>`;
     } else {
       prompt = stdinPrompt || cliPrompt;
     }
-
     if (!prompt) {
-      console.error(chalk.red('Error: Prompt is required. Usage: generate "your prompt" or via stdin.'));
-      process.exit(1);
+      emitResult(rejected(1, 'Prompt is required. Usage: generate "your prompt" or via stdin.'), jsonMode, spinner);
     }
 
-    // Resolve model name & aliases, check obsolete models
-    let resolvedModel: Model;
+    let refs: RoleRef[] = [];
+    let params: Record<string, unknown> = {};
     try {
-      resolvedModel = resolveModel(opts.model);
+      refs = attachNotes((opts.ref as string[]).map(parseRefArg), opts.refNote as string[]);
+      params = parseParams(opts.param as string[]);
     } catch (err) {
-      console.error(chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
-      process.exit(1);
+      emitResult(rejected(2, err instanceof Error ? err.message : String(err)), jsonMode, spinner);
     }
 
-    const isVideo = isVideoModel(resolvedModel);
-    const deprecation = getModelSpec(resolvedModel).deprecated;
-    if (deprecation) {
-      console.error(chalk.yellow(`Warning: ${resolvedModel} is deprecated. ${deprecation}`));
-    }
-
-    // Determine output path
-    let defaultOut = isVideo ? DEFAULT_OPTIONS.videoOutput : DEFAULT_OPTIONS.output;
-    let outputPath = opts.output || defaultOut;
-
-    if (isVideo && /\.(png|jpg|jpeg|webp)$/i.test(outputPath)) {
-      outputPath = outputPath.replace(/\.(png|jpg|jpeg|webp)$/i, '.mp4');
-    }
-
-    const options: GenerateOptions = {
-      model: resolvedModel,
-      prompt,
-      size: opts.size,
-      resolution: opts.resolution,
-      duration: opts.duration,
-      fps: opts.fps,
-      aspectRatio: opts.aspectRatio as AspectRatio,
-      output: outputPath,
-      referenceImages: opts.reference, // Commander collects into array
-      transparent: opts.transparent,
-      removeBg: opts.removeBg,
-      addBg: opts.addBg,
-      negativePrompt: opts.negativePrompt,
-      thumbnail: opts.thumbnail,
-      variations: opts.variations,
-      seed: opts.seed,
-      steps: opts.steps,
-      guidance: opts.guidance,
-      quality: opts.quality,
-      style: opts.style,
-      numImages: opts.numImages,
-      useApi: opts.api,
-    };
-
-    const variationCount = isVideo ? 1 : (options.variations || 1);
-    const isMultiple = variationCount > 1;
-    const baseOutput = outputPath;
-    const ext = baseOutput.match(/\.(png|jpg|jpeg|webp|mp4)$/i)?.[0] || (isVideo ? '.mp4' : '.png');
-    const basePath = baseOutput.replace(new RegExp(`\\${ext}$`, 'i'), '');
-
-    const spinner = ora({
-      text: isVideo
-        ? `Generating video with ${chalk.cyan(options.model)}...`
-        : isMultiple
-        ? `Generating ${variationCount} variations with ${chalk.cyan(options.model)}...`
-        : `Generating image with ${chalk.cyan(options.model)}...`,
-      spinner: 'dots',
-    }).start();
-
-    // Wire live status updates into spinner
-    options.onProgress = (status: string) => {
-      spinner.text = status;
-    };
-
+    let kind: 'image' | 'video' | 'audio' = 'image';
     try {
-      const provider = getProviderForModel(options.model);
-      const generatedPaths: string[] = [];
-
-      for (let i = 1; i <= variationCount; i++) {
-        const itemOutput = isMultiple ? `${basePath}-v${i}${ext}` : baseOutput;
-
-        if (isMultiple) {
-          spinner.text = `Generating variation ${i}/${variationCount}...`;
-        }
-
-        // Generate the image or video
-        const result = await provider.generate({ ...options, output: itemOutput });
-
-        if (!result.success) {
-          spinner.fail(chalk.red(`Generation failed: ${result.error}`));
-          process.exit(1);
-        }
-
-        // Post-processing only applies to images
-        if (!isVideo && result.outputPath) {
-          if (options.removeBg) {
-            spinner.text = isMultiple
-              ? `Removing background (${i}/${variationCount})...`
-              : 'Removing background...';
-            await removeBackground(result.outputPath, result.outputPath);
-          }
-
-          if (options.addBg) {
-            spinner.text = 'Adding background color...';
-            await addBackgroundColor(result.outputPath, result.outputPath, options.addBg);
-          }
-
-          if (options.thumbnail) {
-            spinner.text = 'Generating thumbnail...';
-            const size = typeof options.thumbnail === 'number' ? options.thumbnail : 256;
-            await generateThumbnail(result.outputPath, { size });
-          }
-        }
-
-        generatedPaths.push(result.outputPath!);
-      }
-
-      spinner.succeed(chalk.green(
-        isVideo
-          ? 'Video generated successfully!'
-          : isMultiple
-          ? `Generated ${variationCount} variations successfully!`
-          : 'Image generated successfully!'
-      ));
-
-      // Output summary
-      console.log();
-      console.log(chalk.dim('─'.repeat(50)));
-      if (isMultiple) {
-        console.log(chalk.bold('  Outputs:'));
-        for (const path of generatedPaths) {
-          console.log(`    ${chalk.cyan(path)}`);
-        }
-      } else {
-        console.log(chalk.bold('  Output:'), chalk.cyan(generatedPaths[0]));
-      }
-      console.log(chalk.bold('  Model:'), options.model);
-      console.log(chalk.dim('─'.repeat(50)));
-      console.log();
-
-      // Open the first media output on macOS
-      if (process.platform === 'darwin' && generatedPaths[0]) {
-        const { spawn } = await import('child_process');
-        spawn('open', [generatedPaths[0]], { detached: true, stdio: 'ignore' }).unref();
-      }
-    } catch (error) {
-      spinner.fail(chalk.red(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`));
-      process.exit(1);
+      const resolved = resolveModel(opts.model);
+      kind = getModelSpec(resolved).kind;
+      const deprecation = getModelSpec(resolved).deprecated;
+      if (deprecation && !jsonMode) console.error(chalk.yellow(`Warning: ${resolved} is deprecated. ${deprecation}`));
+    } catch (err) {
+      emitResult(rejected(1, err instanceof Error ? err.message : String(err)), jsonMode, spinner);
     }
+
+    const defaultOut = kind === 'video' ? DEFAULT_OPTIONS.videoOutput : kind === 'audio' ? DEFAULT_OPTIONS.audioOutput : DEFAULT_OPTIONS.output;
+    let outputPath: string = opts.output || defaultOut;
+    if (kind === 'video' && /\.(png|jpg|jpeg|webp)$/i.test(outputPath)) outputPath = outputPath.replace(/\.(png|jpg|jpeg|webp)$/i, '.mp4');
+    if (kind === 'audio' && /\.(png|jpg|jpeg|webp|mp4)$/i.test(outputPath)) outputPath = outputPath.replace(/\.(png|jpg|jpeg|webp|mp4)$/i, '.mp3');
+
+    const variationCount = kind === 'image' && !opts.quote ? opts.variations || 1 : 1;
+    const ext = outputPath.match(/\.[A-Za-z0-9]+$/)?.[0] || '';
+    const basePath = ext ? outputPath.slice(0, -ext.length) : outputPath;
+
+    const merged: string[] = [];
+    let last: ResultJson | undefined;
+    for (let i = 1; i <= variationCount; i++) {
+      const itemOutput = variationCount > 1 ? `${basePath}-v${i}${ext}` : outputPath;
+      if (variationCount > 1) onProgress(`Generating variation ${i}/${variationCount}...`);
+      last = await run(
+        {
+          modelInput: opts.model,
+          via: opts.via as Provider | undefined,
+          billing: opts.billing,
+          draft: Boolean(opts.draft),
+          quoteOnly: Boolean(opts.quote),
+          maxCost: opts.maxCost,
+          options: {
+            prompt,
+            size: opts.size,
+            resolution: opts.resolution,
+            duration: opts.duration,
+            fps: opts.fps,
+            aspectRatio: opts.aspectRatio as AspectRatio,
+            output: itemOutput,
+            referenceImages: opts.reference,
+            refs,
+            params,
+            transparent: opts.transparent,
+            removeBg: opts.removeBg,
+            addBg: opts.addBg,
+            negativePrompt: opts.negativePrompt,
+            thumbnail: opts.thumbnail,
+            seed: opts.seed,
+            steps: opts.steps,
+            guidance: opts.guidance,
+            quality: opts.quality,
+            style: opts.style,
+            numImages: opts.numImages,
+            useApi: opts.api,
+            waitSeconds,
+            noWait,
+            onProgress,
+          },
+        },
+        deps
+      );
+      if (!last.ok || last.pending || opts.quote) emitResult(last, jsonMode, spinner);
+
+      for (const file of last.outputs) {
+        if (!/\.(png|jpe?g|webp)$/i.test(file)) continue;
+        if (opts.removeBg) {
+          onProgress('Removing background...');
+          await removeBackground(file, file);
+        }
+        if (opts.addBg) {
+          onProgress('Adding background color...');
+          await addBackgroundColor(file, file, opts.addBg);
+        }
+        if (opts.thumbnail) {
+          onProgress('Generating thumbnail...');
+          await generateThumbnail(file, { size: typeof opts.thumbnail === 'number' ? opts.thumbnail : 256 });
+        }
+      }
+      merged.push(...last.outputs);
+    }
+    emitResult({ ...last!, outputs: merged }, jsonMode, spinner);
   });
+
+function rejected(code: 1 | 2, error: string): ResultJson {
+  return { ok: false, provider: null, model: null, provider_model_id: null, outputs: [], job_id: null, quote_usd: null, billing: null, agentic: false, request: null, error, exit_code: code, warnings: [] };
+}
+
+function emitResult(json: ResultJson, jsonMode: boolean, spinner: Ora): never {
+  if (jsonMode) {
+    spinner.stop();
+    process.stdout.write(JSON.stringify(json) + '\n');
+    process.exit(json.exit_code);
+  }
+  for (const w of json.warnings) console.error(chalk.yellow(`Warning: ${w}`));
+  if (json.exit_code === 75) {
+    spinner.warn(chalk.yellow(json.error ?? 'Still running'));
+    process.exit(75);
+  }
+  if (!json.ok) {
+    spinner.fail(chalk.red(json.error ?? 'Failed'));
+    process.exit(json.exit_code);
+  }
+  if (json.pending) {
+    spinner.info(`Submitted job ${json.job_id}. Resume with: generate --resume ${json.job_id}`);
+    process.exit(0);
+  }
+  if (json.quote_usd !== null && json.outputs.length === 0) {
+    spinner.succeed(`Price: $${json.quote_usd.toFixed(4)}  (${json.model} via ${json.provider}, ${json.billing})`);
+    process.exit(0);
+  }
+  spinner.succeed(chalk.green('Done'));
+  console.log();
+  console.log(chalk.dim('─'.repeat(50)));
+  if (json.outputs.length > 1) {
+    console.log(chalk.bold('  Outputs:'));
+    for (const p of json.outputs) console.log(`    ${chalk.cyan(p)}`);
+  } else {
+    console.log(chalk.bold('  Output:'), chalk.cyan(json.outputs[0] ?? '(none)'));
+  }
+  console.log(chalk.bold('  Model:'), `${json.model} via ${json.provider} (${json.billing})`);
+  if (json.job_id) console.log(chalk.bold('  Job:'), json.job_id);
+  console.log(chalk.dim('─'.repeat(50)));
+  console.log();
+  if (process.platform === 'darwin' && json.outputs[0]) {
+    spawn('open', [json.outputs[0]], { detached: true, stdio: 'ignore' }).unref();
+  }
+  process.exit(0);
+}
 
 // Custom help
 program.addHelpText('after', `
@@ -352,6 +394,25 @@ ${chalk.bold('Examples:')}
   ${chalk.dim('# Generate 5 variations')}
   $ generate "Abstract art" --variations 5 -o ~/Downloads/abstract.png
 
+  ${chalk.dim('# Price a request without generating; refuse anything over 50 cents')}
+  $ generate -m kling-3-pro "a dancer spins" --ref start=./pose.png --quote
+  $ generate -m kling-3-pro "a dancer spins" --ref start=./pose.png --max-cost 0.50
+
+  ${chalk.dim('# Unpaid (plan-billed) path only; fails rather than spending money')}
+  $ generate -m gpt-image-2 "a lighthouse at dusk" --billing plan
+
+  ${chalk.dim('# Cheap draft first, then the final on the same settings')}
+  $ generate -m veo-3.1 "waves at night" --draft
+  $ generate -m veo-3.1 "waves at night"
+
+  ${chalk.dim('# Long jobs: return immediately, finish later')}
+  $ generate -m seedance-2 "city timelapse" --no-wait
+  $ generate --jobs
+  $ generate --resume <id>
+
+${chalk.bold('Exit codes:')}
+  0 done   1 failed   2 rejected before anything was sent   75 still running (use --resume)
+
 ${chalk.bold('Stdin Support:')}
   ${chalk.dim('# Pipe prompt from file or other tools')}
   $ cat prompt.txt | generate
@@ -366,6 +427,7 @@ ${chalk.bold('Environment Variables:')}
   OPENAI_API_KEY                    Required for GPT-Image models
   REPLICATE_API_TOKEN               Required for Flux models
   REMOVE_BG_API_KEY                 Required for --remove-bg feature
+  ATLASCLOUD_API_KEY                Required for Atlas models
 
 ${chalk.bold('Model Configuration:')}
   Models, aliases, API ids, and retired-model notices are defined in
