@@ -131,6 +131,20 @@ models:
     draft: { resolution: 480p }
     inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, aspect_ratio: ratio, seed: seed }
 
+  # https://www.atlascloud.ai/models/bytedance/seedance-2.5/text-to-video , /image-to-video (read 2026-10-05):
+  # image + last_image; duration -1|4-30; resolution 480p|720p|1080p (+ -sr/-esr upscales, priced differently);
+  # aspect field is "ratio" (incl. adaptive); no seed; generate_audio defaults to true; native "draft" flag;
+  # return_last_frame=true returns the final frame (useful for chaining shots).
+  seedance-2.5:
+    id: bytedance/seedance-2.5/text-to-video
+    i2v_id: bytedance/seedance-2.5/image-to-video
+    kind: video
+    billing: metered
+    description: Seedance 2.5. 4-30 s, audio on by default; token-billed, quotes are estimates. --param return_last_frame=true to chain shots.
+    refs: { start: 1, end: 1 }
+    draft: { resolution: 480p }
+    inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, aspect_ratio: ratio }
+
   # https://www.atlascloud.ai/models/alibaba/wan-2.7/image-to-video (read 2026-10-04): image + last_image; duration 2-15;
   # resolution 720P|1080P; no aspect field (follows the input); seed; negative_prompt.
   wan-2.7:
@@ -161,5 +175,5 @@ models:
 
 # Removed 2026-10-04 after verify-atlas-models.ts: ideogram/v4/quality/text-to-image
 # (price check needs an undocumented image_size_obj field) and suno/chirp-v5 (not found).
-# Not added until confirmed on a reference page: Gemini Omni Flash, Seedance 2.5,
-# Kling Omni (O3), MiniMax H3, Vidu Q3.
+# Not added until confirmed on a reference page: Gemini Omni Flash,
+# Kling Omni (O3), MiniMax H3, Vidu Q3. (Seedance 2.5 added 2026-10-05.)
