@@ -1,8 +1,9 @@
-import { GoogleGenAI } from '@google/genai';
+import { GenerateVideosOperation, GoogleGenAI } from '@google/genai';
 import fs from 'fs';
 import path from 'path';
 import { BaseProvider } from './base';
-import type { GenerateOptions, GenerationResult, Model } from '../types';
+import type { GenerateOptions, GenerationResult, JobRecord, Model } from '../types';
+import { DEFAULT_WAIT_SECONDS, POLL_INTERVAL_MS, RetryableError, updateJob, waitForJob, writeJob, type PollState } from '../utils/jobs';
 import { DEFAULT_OPTIONS } from '../types';
 import { getModelSpec, modelsForProvider } from '../config/models';
 import { readImageAsBase64, getMimeType } from '../utils/download';
@@ -45,6 +46,12 @@ function resolveApiKey(): string | undefined {
   return undefined;
 }
 
+export function veoPollState(op: { done?: boolean; error?: Record<string, unknown> }): PollState {
+  if (!op.done) return { status: 'processing' };
+  if (op.error) return { status: 'failed', message: JSON.stringify(op.error) };
+  return { status: 'completed', urls: [] };
+}
+
 export class GoogleProvider extends BaseProvider {
   name = 'Google';
   // Model list, Gemini API ids, and capability flags live in config/models/google.yaml
@@ -52,8 +59,12 @@ export class GoogleProvider extends BaseProvider {
 
   private client: GoogleGenAI | null = null;
 
-  constructor() {
+  constructor(client?: GoogleGenAI) {
     super();
+    if (client) {
+      this.client = client;
+      return;
+    }
     const apiKey = resolveApiKey();
     if (apiKey) {
       // Ensure vertexai: false when using Gemini API keys
@@ -154,79 +165,36 @@ export class GoogleProvider extends BaseProvider {
 
       options.onProgress?.(`Starting video generation with ${options.model}...`);
 
-      let operation = await this.client.models.generateVideos({
+      const operation = await this.client.models.generateVideos({
         model: modelName,
         prompt: options.prompt,
         ...(imageParam && { image: imageParam }),
         config,
       });
 
-      // Poll until completed
-      let elapsed = 0;
-      const pollInterval = 5000;
-      const maxWaitTime = 300000; // 5 minutes
-
-      while (!operation.done) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
-        elapsed += pollInterval / 1000;
-        options.onProgress?.(`Generating video with ${options.model} (elapsed: ${elapsed}s)...`);
-
-        operation = await this.client.operations.getVideosOperation({ operation });
-
-        if (elapsed * 1000 >= maxWaitTime) {
-          return {
-            success: false,
-            error: `Video generation timed out after ${elapsed} seconds.`,
-          };
-        }
+      if (!operation.name) {
+        return { success: false, error: 'Veo returned no operation name, so the job cannot be tracked. Check the Google AI Studio dashboard before retrying.' };
       }
-
-      if (operation.error) {
-        return {
-          success: false,
-          error: `Video generation failed: ${JSON.stringify(operation.error)}`,
-        };
-      }
-
-      const generatedVideo = operation.response?.generatedVideos?.[0]?.video;
-      if (!generatedVideo) {
-        return {
-          success: false,
-          error: 'No video was returned by the model. Check safety filters or guidelines.',
-        };
-      }
-
-      options.onProgress?.(`Downloading generated video to ${path.basename(outputPath)}...`);
-
-      const dir = path.dirname(outputPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-
-      if (generatedVideo.videoBytes) {
-        const buffer = Buffer.from(generatedVideo.videoBytes, 'base64');
-        await Bun.write(outputPath, buffer);
-      } else if (generatedVideo.uri) {
-        await this.client.files.download({
-          file: generatedVideo,
-          downloadPath: outputPath,
-        });
-      } else {
-        return {
-          success: false,
-          error: 'Video response contained neither video bytes nor download URI.',
-        };
-      }
-
-      return {
-        success: true,
-        outputPath,
-        metadata: {
-          model: options.model,
-          prompt: options.prompt,
-          duration: Date.now() - startTime,
+      const record: JobRecord = {
+        id: operation.name,
+        provider: 'google',
+        model: options.model,
+        kind: 'video',
+        output: outputPath,
+        submittedAt: new Date().toISOString(),
+        status: 'pending',
+        provider_model_id: modelName,
+        request: {
+          prompt_sent: options.prompt,
+          seed: options.seed,
+          params: config,
+          refs: (options.referenceImages ?? []).slice(0, 1).map((p) => ({ role: 'start' as const, path: p })),
+          draft: Boolean(options.draft),
         },
       };
+      writeJob(record);
+      if (options.noWait) return { success: false, pending: true, jobId: record.id, providerModelId: modelName, request: record.request };
+      return await this.waitVeo(operation, record, options);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 
@@ -249,6 +217,68 @@ export class GoogleProvider extends BaseProvider {
         error: errorMessage,
       };
     }
+  }
+
+  private async waitVeo(
+    initial: GenerateVideosOperation,
+    record: JobRecord,
+    opts: { waitSeconds?: number; onProgress?: (status: string) => void }
+  ): Promise<GenerationResult> {
+    let current = initial;
+    const state = await waitForJob(
+      async () => {
+        try {
+          current = await this.client!.operations.getVideosOperation({ operation: current });
+        } catch (err) {
+          const status = (err as { status?: number }).status;
+          if (status === 429 || (status !== undefined && status >= 500)) throw new RetryableError(`HTTP ${status}`);
+          throw err;
+        }
+        return veoPollState(current);
+      },
+      { waitSeconds: opts.waitSeconds ?? DEFAULT_WAIT_SECONDS.video, intervalMs: POLL_INTERVAL_MS.video, onProgress: opts.onProgress }
+    );
+
+    if (state.status === 'timeout') {
+      return { success: false, pending: true, jobId: record.id, providerModelId: record.provider_model_id, request: record.request, error: `Still running. Resume with: generate --resume ${record.id}` };
+    }
+    if (state.status === 'failed') {
+      updateJob(record.id, { status: 'failed', error: { message: state.message } });
+      return { success: false, jobId: record.id, error: `Video generation failed: ${state.message}` };
+    }
+    const saved = await this.saveVeoVideo(current, record.output, opts.onProgress);
+    if (!saved.success) {
+      updateJob(record.id, { status: 'failed', error: { message: saved.error ?? 'download failed' } });
+      return { ...saved, jobId: record.id };
+    }
+    updateJob(record.id, { status: 'completed', outputs: [record.output] });
+    return { success: true, outputPath: record.output, outputs: [record.output], jobId: record.id, providerModelId: record.provider_model_id, request: record.request };
+  }
+
+  private async saveVeoVideo(op: GenerateVideosOperation, outputPath: string, onProgress?: (s: string) => void): Promise<GenerationResult> {
+    const generatedVideo = op.response?.generatedVideos?.[0]?.video;
+    if (!generatedVideo) {
+      return { success: false, error: 'No video was returned by the model. Check safety filters or guidelines.' };
+    }
+    onProgress?.(`Downloading generated video to ${path.basename(outputPath)}...`);
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    if (generatedVideo.videoBytes) {
+      await Bun.write(outputPath, Buffer.from(generatedVideo.videoBytes, 'base64'));
+    } else if (generatedVideo.uri) {
+      await this.client!.files.download({ file: generatedVideo, downloadPath: outputPath });
+    } else {
+      return { success: false, error: 'Video response contained neither video bytes nor download URI.' };
+    }
+    return { success: true, outputPath };
+  }
+
+  async resume(record: JobRecord, opts: { waitSeconds?: number; onProgress?: (status: string) => void }): Promise<GenerationResult> {
+    if (!this.client) {
+      return { success: false, error: 'GOOGLE_API_KEY or GEMINI_API_KEY (or a macOS Keychain entry) is required to resume a Veo job.' };
+    }
+    const op = new GenerateVideosOperation();
+    op.name = record.id;
+    return this.waitVeo(op, record, opts);
   }
 
   async generate(options: GenerateOptions): Promise<GenerationResult> {
