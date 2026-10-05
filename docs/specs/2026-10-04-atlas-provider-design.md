@@ -149,6 +149,7 @@ A second plan-billed agentic image path, billed against the owner's Gemini plan 
 - Invocation: `agy --dangerously-skip-permissions --sandbox --effort <effort> --prompt "<prompt>"` (effort from YAML, default `high`). `--sandbox` is mandatory and must not be configurable off, because permissions are skipped.
 - The CLI does not report which image model it used, so `config/models/agy.yaml` declares its own canonical name `agy-image` (`agentic: true`, `billing: plan`), and `--json` reports `provider_model_id: "agy default agent model"` rather than guessing.
 - Owner's field notes for selection guidance: generates well; weaker than Codex and Gemini at restoration; slower than Codex.
+- Spike, 2026-10-04 (agy 1.2.16, `--effort high`, `--output-format stream-json`): one text-to-image run succeeded in 179 s with a valid 1376x768 PNG at the staged path and no stray files. The image came from a subagent's native image tool (agy writes a JPEG under `~/.gemini/antigravity-cli/brain/<conversation>/`, then converts); no shell command touched a metered API. 1376x768 matches Gemini 3-family 16:9 1K output, suggesting a Nano Banana model underneath (inferred, not reported). Roughly half the run was the agent probing sandbox write permissions and confusing `/tmp` with `/private/tmp`. Implementation therefore: run agy with `cwd` set to the stage directory, ask for a relative `generated.png`, and pass only `realpath`-resolved paths. Re-measure latency after that change.
 
 ### Atlas provider (`src/providers/atlas.ts`)
 
