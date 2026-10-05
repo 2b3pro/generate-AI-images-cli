@@ -80,7 +80,7 @@ export class GoogleProvider extends BaseProvider {
   }
 
   private isVideo(model: Model): boolean {
-    return getModelSpec(model).kind === 'video';
+    return getModelSpec(model, 'google').kind === 'video';
   }
 
   private async generateVideo(options: GenerateOptions): Promise<GenerationResult> {
@@ -94,7 +94,7 @@ export class GoogleProvider extends BaseProvider {
     const startTime = Date.now();
 
     try {
-      const spec = getModelSpec(options.model);
+      const spec = getModelSpec(options.model, 'google');
       const modelName = spec.id;
 
       // Output path
@@ -278,7 +278,7 @@ export class GoogleProvider extends BaseProvider {
       const aspectRatio = options.aspectRatio || DEFAULT_OPTIONS.aspectRatio;
       const outputPath = options.output || DEFAULT_OPTIONS.output;
 
-      const spec = getModelSpec(options.model);
+      const spec = getModelSpec(options.model, 'google');
       const modelName = spec.id;
 
       // Determine image size from the model's allowed list (image_sizes in YAML).

@@ -3,6 +3,7 @@
 #
 #   id             Replicate model slug (owner/name) passed to replicate.run().
 #   kind           image | video
+#   billing       metered (charged per call) | plan (subscription usage limits). Required.
 #   deprecated     Optional notice; printed as a warning when the model is used.
 #   aspect_ratios  aspect_ratio values the model's schema accepts. Others are
 #                  refused before the API call.
@@ -28,6 +29,7 @@ models:
   flux-2-pro:
     id: black-forest-labs/flux-2-pro
     kind: image
+    billing: metered
     description: FLUX.2 Pro. Current production workhorse; generation and editing with up to 8 reference images (~$0.03 per 1MP image).
     aliases: [flux-2, flux2, flux2-pro]
     aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]
@@ -41,6 +43,7 @@ models:
   flux-2-max:
     id: black-forest-labs/flux-2-max
     kind: image
+    billing: metered
     description: FLUX.2 Max. Highest-fidelity BFL image model; generation and editing with up to 8 reference images (~$0.07 per 1MP image).
     aliases: [flux-max, flux2-max]
     aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]
@@ -54,6 +57,7 @@ models:
   flux-2-flex:
     id: black-forest-labs/flux-2-flex
     kind: image
+    billing: metered
     description: FLUX.2 Flex. Exposes steps and guidance; best for typography; up to 10 reference images.
     aliases: [flux-flex, flux2-flex]
     aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]
@@ -69,6 +73,7 @@ models:
   flux-2-klein:
     id: black-forest-labs/flux-2-klein-4b
     kind: image
+    billing: metered
     description: FLUX.2 Klein 4B. Sub-second 4-step generation and editing, cheapest FLUX (~$0.001 per MP); up to 5 reference images.
     aliases: [flux-klein, flux-2-klein-4b, klein]
     aspect_ratios: ["1:1", "16:9", "9:16", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "21:9", "9:21"]
@@ -82,6 +87,7 @@ models:
   flux:
     id: black-forest-labs/flux-1.1-pro
     kind: image
+    billing: metered
     description: FLUX 1.1 Pro. Previous-generation flagship, still live on Replicate; BFL now lists it as legacy. Consider flux-2-pro.
     aliases: [flux-1.1-pro]
     aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]
@@ -92,6 +98,7 @@ models:
   flux-dev:
     id: black-forest-labs/flux-dev
     kind: image
+    billing: metered
     description: FLUX.1 Dev. Open-weight 12B model; the only FLUX with true img2img (image + prompt_strength) and full steps/guidance control.
     aspect_ratios: ["1:1", "16:9", "21:9", "3:2", "2:3", "4:5", "5:4", "3:4", "4:3", "9:16", "9:21"]
     inputs:
@@ -107,6 +114,7 @@ models:
   flux-schnell:
     id: black-forest-labs/flux-schnell
     kind: image
+    billing: metered
     description: FLUX.1 Schnell. 4-step open-weight model for rapid drafts (~$0.003 per image).
     aspect_ratios: ["1:1", "16:9", "21:9", "3:2", "2:3", "4:5", "5:4", "3:4", "4:3", "9:16", "9:21"]
     inputs:
@@ -119,6 +127,7 @@ models:
   flux-pro:
     id: black-forest-labs/flux-pro
     kind: image
+    billing: metered
     description: FLUX.1 Pro. Original pro model.
     deprecated: Replicate marks FLUX.1 Pro as deprecated. Use flux (FLUX 1.1 Pro) or flux-2-pro.
     aspect_ratios: ["1:1", "16:9", "3:2", "2:3", "4:5", "5:4", "9:16", "3:4", "4:3"]

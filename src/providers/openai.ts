@@ -128,7 +128,7 @@ export class OpenAIProvider extends BaseProvider {
     try {
       const outputPath = options.output || DEFAULT_OPTIONS.output;
 
-      const spec = getModelSpec(options.model);
+      const spec = getModelSpec(options.model, 'openai');
       const model = spec.id;
       const size = resolveSize(spec, options);
       const quality = resolveQuality(spec, options.quality);

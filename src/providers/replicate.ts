@@ -33,7 +33,7 @@ export class ReplicateProvider extends BaseProvider {
 
   async generate(options: GenerateOptions): Promise<GenerationResult> {
     const startTime = Date.now();
-    const spec = getModelSpec(options.model);
+    const spec = getModelSpec(options.model, 'replicate');
     const modelId = spec.id;
     const inputs = spec.inputs ?? {};
 

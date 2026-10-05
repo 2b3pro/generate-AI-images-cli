@@ -5,6 +5,7 @@
 # Each key under `models:` is the name you pass to `generate -m <name>`.
 #   id            Model identifier sent to the Gemini API (defaults to the key).
 #   kind          image | video   (default: image)
+#   billing       metered (charged per call) | plan (subscription usage limits). Required.
 #   description   Shown by `generate --list-models`.
 #   aliases       Extra names accepted by --model (the raw `id` also resolves).
 #   deprecated    Optional notice; printed as a warning when the model is used.
@@ -22,6 +23,7 @@ models:
   nano-banana-2:
     id: gemini-3.1-flash-image
     kind: image
+    billing: metered
     description: Gemini 3.1 Flash Image. Best overall default; 512 to 4K, fast, strong text rendering, up to 14 reference images.
     aliases: [gemini-3.1-flash-image, gemini-3.1-flash, gemini-flash]
     image_sizes: [512, 1K, 2K, 4K]
@@ -29,6 +31,7 @@ models:
   nano-banana-pro:
     id: gemini-3-pro-image
     kind: image
+    billing: metered
     description: Gemini 3 Pro Image. Studio-grade precision for complex layouts and typography, 1K to 4K.
     aliases: [gemini-3-pro-image, gemini-3-pro, gemini-pro]
     image_sizes: [1K, 2K, 4K]
@@ -36,6 +39,7 @@ models:
   nano-banana-2-lite:
     id: gemini-3.1-flash-lite-image
     kind: image
+    billing: metered
     description: Gemini 3.1 Flash Lite Image. Sub-2s latency, 1K only, cheapest Gemini image model.
     aliases: [gemini-3.1-flash-lite-image, gemini-3.1-flash-lite, gemini-lite, nano-banana-lite]
     image_sizes: [1K]
@@ -43,6 +47,7 @@ models:
   nano-banana:
     id: gemini-2.5-flash-image
     kind: image
+    billing: metered
     description: Gemini 2.5 Flash Image. Legacy baseline, fixed ~1024px output, no size control.
     aliases: [gemini-2.5-flash-image, gemini-2.5-flash]
     deprecated: Shuts down 2026-10-02. Use nano-banana-2 or nano-banana-2-lite.
@@ -50,6 +55,7 @@ models:
   veo-3.1:
     id: veo-3.1-generate-preview
     kind: video
+    billing: metered
     description: Veo 3.1. Cinematic 720p/1080p/4k video, 16:9 or 9:16, 4-8s, image-to-video via -r.
     aliases: [veo, veo-3.1-generate-preview]
     resolutions: [720p, 1080p, 4k]
@@ -57,6 +63,7 @@ models:
   veo-3.1-fast:
     id: veo-3.1-fast-generate-preview
     kind: video
+    billing: metered
     description: Veo 3.1 Fast. Same features as Veo 3.1 with lower latency.
     aliases: [veo-fast, veo-3.1-fast-generate-preview]
     resolutions: [720p, 1080p, 4k]
@@ -64,6 +71,7 @@ models:
   veo-3.1-lite:
     id: veo-3.1-lite-generate-preview
     kind: video
+    billing: metered
     description: Veo 3.1 Lite. Fast 4-8s clips at 720p/1080p, text- and image-to-video only.
     aliases: [veo-lite, veo-3.1-lite-generate-preview]
     resolutions: [720p, 1080p]

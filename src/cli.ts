@@ -47,13 +47,17 @@ if (process.argv.includes('--list-models')) {
 
   for (const [provider, providerModels] of Object.entries(byProvider)) {
     console.log(chalk.cyan(`  ${provider.toUpperCase()}:`));
-    for (const { model, kind, description, aliases, deprecated } of providerModels) {
-      const tag = kind === 'video' ? chalk.yellow(' [VIDEO]') : chalk.dim(' [IMAGE]');
+    for (const { model, kind, billing, description, aliases, deprecated, alternatives } of providerModels) {
+      const tag = kind === 'video' ? chalk.yellow(' [VIDEO]') : kind === 'audio' ? chalk.magenta(' [AUDIO]') : chalk.dim(' [IMAGE]');
+      const billed = billing === 'plan' ? chalk.green(' (plan)') : '';
       const isDefault = model === DEFAULT_OPTIONS.model ? chalk.green(' (default)') : '';
-      console.log(`    - ${chalk.bold(model)}${tag}${isDefault}`);
+      console.log(`    - ${chalk.bold(model)}${tag}${billed}${isDefault}`);
       if (description) console.log(chalk.dim(`        ${description}`));
       if (deprecated) console.log(chalk.yellow(`        deprecated: ${deprecated}`));
       if (aliases.length) console.log(chalk.dim(`        aliases: ${aliases.join(', ')}`));
+      if (alternatives.length) {
+        console.log(chalk.dim(`        also via: ${alternatives.map((a) => `${a.provider}${a.billing === 'plan' ? ' (plan)' : ''}`).join(', ')}`));
+      }
     }
     console.log();
   }

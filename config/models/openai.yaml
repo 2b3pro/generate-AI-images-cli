@@ -4,6 +4,7 @@
 # Each key under `models:` is the name you pass to `generate -m <name>`.
 #   id            Model identifier sent to the Images API (defaults to the key).
 #   kind          image | video
+#   billing       metered (charged per call) | plan (subscription usage limits). Required.
 #   description   Shown by `generate --list-models`.
 #   aliases       Extra names accepted by --model (snapshot ids go here).
 #   deprecated    Optional notice; printed as a warning when the model is used.
@@ -26,6 +27,7 @@ models:
   gpt-image-2.5-sunburst:
     id: gpt-image-2.5-sunburst
     kind: image
+    billing: metered
     description: GPT Image 2.5 Sunburst. Highest quality; best for editing precision and inpainting.
     aliases: [gpt-image-2.5, sunburst, gpt-image-2.5-sunburst-2026-09-08]
     edit: true
@@ -38,6 +40,7 @@ models:
   gpt-image-2.5-flare:
     id: gpt-image-2.5-flare
     kind: image
+    billing: metered
     description: GPT Image 2.5 Flare. Fastest 2.5 model for high-quality everyday generation.
     aliases: [flare, gpt-image-2.5-flare-2026-09-08]
     edit: true
@@ -50,6 +53,7 @@ models:
   gpt-image-2:
     id: gpt-image-2
     kind: image
+    billing: metered
     description: GPT Image 2. Flexible sizes and high-fidelity image input; Batch API supported.
     aliases: [gpt-image-2-2026-04-21]
     edit: true
@@ -62,6 +66,7 @@ models:
   gpt-image-1.5:
     id: gpt-image-1.5
     kind: image
+    billing: metered
     description: GPT Image 1.5. Fixed sizes only.
     deprecated: Shuts down 2026-12-01. Use gpt-image-2.5-sunburst or gpt-image-2.5-flare.
     edit: true
@@ -72,6 +77,7 @@ models:
   gpt-image-1:
     id: gpt-image-1
     kind: image
+    billing: metered
     description: GPT Image 1. Previous-generation model, fixed sizes only.
     deprecated: Shuts down 2026-10-23. Use gpt-image-2.5-sunburst or gpt-image-2.5-flare.
     edit: false
@@ -82,6 +88,7 @@ models:
   gpt-image-1-mini:
     id: gpt-image-1-mini
     kind: image
+    billing: metered
     description: GPT Image 1 Mini. Low-cost previous-generation model, fixed sizes only.
     deprecated: Shuts down 2026-12-01. Use gpt-image-2.5-flare.
     edit: false

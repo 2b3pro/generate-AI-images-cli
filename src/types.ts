@@ -1,4 +1,4 @@
-export type Provider = 'replicate' | 'openai' | 'google';
+export type Provider = 'replicate' | 'openai' | 'google' | 'atlas' | 'codex' | 'agy';
 
 /**
  * Canonical model name as listed in config/models/*.yaml (e.g. "nano-banana-2",
@@ -7,7 +7,80 @@ export type Provider = 'replicate' | 'openai' | 'google';
  */
 export type Model = string;
 
-export type ModelKind = 'image' | 'video';
+export type ModelKind = 'image' | 'video' | 'audio';
+
+/** metered = charged per call; plan = draws on a subscription's usage limits */
+export type Billing = 'metered' | 'plan';
+
+export type RefRole = 'start' | 'end' | 'identity' | 'style' | 'object' | 'location';
+export const REF_ROLES: RefRole[] = ['start', 'end', 'identity', 'style', 'object', 'location'];
+
+/** How references are named inside the prompt sent to the model */
+export type LabelStyle = 'prose' | 'at-index' | 'wan-numbered';
+
+export interface RoleRef {
+  role: RefRole;
+  /** Local path or http(s) URL */
+  source: string;
+  note?: string;
+}
+
+/** Per-model reference rules. A role that is absent or 0 is not accepted. */
+export type RefCaps = Partial<Record<RefRole, number>> & {
+  exclusive?: RefRole[][];
+  forces?: Partial<Record<RefRole, { duration?: number }>>;
+  max_people_warning?: number;
+};
+
+export interface DirectPrice {
+  usd: number;
+  /** "image", "second", or "plan limits" */
+  unit: string;
+  source?: string;
+  checked?: string;
+}
+
+export interface DraftTier {
+  model?: Model;
+  resolution?: string;
+}
+
+/** Atlas: request field names for CLI options. Omitted = the model has no such field. */
+export interface AtlasInputs {
+  /** Field that carries the prompt text (default "prompt"; TTS models often use "text") */
+  prompt?: string;
+  end_image?: string;
+  duration?: string;
+  aspect_ratio?: string;
+  seed?: string;
+  negative_prompt?: string;
+}
+
+export interface RequestRecord {
+  prompt_sent: string;
+  seed?: number;
+  params: Record<string, unknown>;
+  refs: { role: RefRole | 'reference'; path: string; uploaded_url?: string; note?: string }[];
+  draft: boolean;
+}
+
+export type JobStatus = 'pending' | 'completed' | 'failed';
+
+export interface JobRecord {
+  /** Provider's remote id: Atlas prediction id or Veo operation name */
+  id: string;
+  provider: Provider;
+  model: Model;
+  kind: ModelKind;
+  output: string;
+  submittedAt: string;
+  status: JobStatus;
+  provider_model_id?: string;
+  quote?: { usd: number };
+  outputs?: string[];
+  error?: { code?: number | string; message: string };
+  request?: RequestRecord;
+}
 
 /** One entry from a provider's YAML file, normalised by the registry loader. */
 export interface ModelSpec {
@@ -22,6 +95,26 @@ export interface ModelSpec {
   aliases: string[];
   /** Human-readable deprecation notice; the CLI warns when the model is used */
   deprecated?: string;
+  /** How this path is paid for; required in every YAML entry */
+  billing: Billing;
+  /** Backend inspects and may revise its own output (Codex, Antigravity) */
+  agentic?: boolean;
+  /** Atlas: model id used when reference images are given to an image model */
+  edit_id?: string;
+  /** Atlas: model id used for image-to-video (a start frame is given) */
+  i2v_id?: string;
+  /** Atlas: model id used for reference-to-video (identity/style/object/location refs, no start frame) */
+  r2v_id?: string;
+  refs?: RefCaps;
+  label_style?: LabelStyle;
+  draft?: DraftTier;
+  direct_price?: DirectPrice;
+  /** Codex: agent model passed as --model; omitted = Codex's configured default */
+  agent_model?: string;
+  /** Codex/Antigravity: reasoning effort */
+  reasoning_effort?: string;
+  /** Agent providers: process timeout in seconds (default 600) */
+  timeout_seconds?: number;
 
   // ---- Provider-specific capability flags (all optional) ----
   /** OpenAI: model accepts reference images via the images.edit endpoint */
@@ -45,7 +138,7 @@ export interface ModelSpec {
   /** Replicate: aspect_ratio enum the model accepts; others are rejected before the API call */
   aspect_ratios?: string[];
   /** Replicate: how CLI options map onto this model's input schema */
-  inputs?: ReplicateInputs;
+  inputs?: ReplicateInputs & AtlasInputs;
 }
 
 /**
@@ -112,6 +205,16 @@ export interface GenerateOptions {
   quality?: 'standard' | 'hd' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'auto';
   style?: 'vivid' | 'natural';
   numImages?: number;
+  /** Role-typed references (--ref) */
+  refs?: RoleRef[];
+  /** Model-specific top-level request fields (--param) */
+  params?: Record<string, unknown>;
+  /** Poll deadline override in seconds (--wait) */
+  waitSeconds?: number;
+  /** Submit and return without polling (--no-wait) */
+  noWait?: boolean;
+  /** Request is running on a draft tier */
+  draft?: boolean;
   /** @deprecated No-op since 2026-09-06 — the Gemini API is the only image
    *  route. Kept so existing callers passing --api do not break. */
   useApi?: boolean;
@@ -121,7 +224,15 @@ export interface GenerateOptions {
 export interface GenerationResult {
   success: boolean;
   outputPath?: string;
+  /** All written files (multi-output providers); falls back to [outputPath] */
+  outputs?: string[];
   error?: string;
+  errorCode?: number | string;
+  /** Async job still running (timed out or --no-wait) */
+  pending?: boolean;
+  jobId?: string;
+  providerModelId?: string;
+  request?: RequestRecord;
   metadata?: {
     model: string;
     prompt: string;
@@ -134,6 +245,10 @@ export interface ImageProvider {
   name: string;
   models: Model[];
   generate(options: GenerateOptions): Promise<GenerationResult>;
+  /** Continue a recorded async job */
+  resume?(record: JobRecord, options: { waitSeconds?: number; onProgress?: (status: string) => void }): Promise<GenerationResult>;
+  /** Price a request without running it */
+  quote?(options: GenerateOptions): Promise<number>;
 }
 
 export const ASPECT_RATIO_TO_DIMENSIONS: Record<AspectRatio, { width: number; height: number }> = {
@@ -154,6 +269,7 @@ export const DEFAULT_OPTIONS = {
   aspectRatio: '16:9' as AspectRatio,
   output: '/tmp/generated-image.png',
   videoOutput: '/tmp/generated-video.mp4',
+  audioOutput: '/tmp/generated-audio.mp3',
   quality: 'standard' as const,
   style: 'vivid' as const,
   numImages: 1,

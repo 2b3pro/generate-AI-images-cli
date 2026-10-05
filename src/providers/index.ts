@@ -1,12 +1,12 @@
-import type { ImageProvider, Model, Provider } from '../types';
-import { getModelSpec, listModelSpecs, resolveModel } from '../config/models';
+import type { Billing, ImageProvider, Model, ModelKind, ModelSpec, Provider } from '../types';
+import { getModelSpec, listModelSpecs, listOffers, resolveModel } from '../config/models';
 import { ReplicateProvider } from './replicate';
 import { OpenAIProvider } from './openai';
 import { GoogleProvider } from './google';
 
 const providers: Map<Provider, ImageProvider> = new Map();
 
-function getOrCreateProvider(providerName: Provider): ImageProvider {
+export function getOrCreateProvider(providerName: Provider): ImageProvider {
   let provider = providers.get(providerName);
 
   if (!provider) {
@@ -34,14 +34,31 @@ export function getProviderForModel(modelInput: string): ImageProvider {
   return getOrCreateProvider(getModelSpec(model).provider);
 }
 
-export function listModels(): { model: Model; provider: Provider; kind: 'image' | 'video'; description?: string; aliases: string[]; deprecated?: string }[] {
+export function getProviderForSpec(spec: ModelSpec): ImageProvider {
+  return getOrCreateProvider(spec.provider);
+}
+
+export function listModels(): {
+  model: Model;
+  provider: Provider;
+  kind: ModelKind;
+  billing: Billing;
+  description?: string;
+  aliases: string[];
+  deprecated?: string;
+  alternatives: { provider: Provider; billing: Billing }[];
+}[] {
   return listModelSpecs().map((m) => ({
     model: m.name,
     provider: m.provider,
     kind: m.kind,
+    billing: m.billing,
     description: m.description,
     aliases: m.aliases,
     deprecated: m.deprecated,
+    alternatives: listOffers(m.name)
+      .filter((o) => o.provider !== m.provider)
+      .map((o) => ({ provider: o.provider, billing: o.billing })),
   }));
 }
 

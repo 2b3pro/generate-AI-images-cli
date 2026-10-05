@@ -1,0 +1,6 @@
+# Which provider serves a model name offered by more than one provider.
+# Edited by hand from `bun scripts/quote-table.ts`. Flip rule: a reseller
+# becomes preferred only when its quote is at least 10% below the direct list
+# price AND a side-by-side on the same prompts shows parity.
+# A name offered by one provider needs no entry; a shared name without an
+# entry is a load-time error.
