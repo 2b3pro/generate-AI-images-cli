@@ -230,9 +230,9 @@ For each canonical name declared by both Atlas and a direct provider: quote Atla
 | 6 | Codex is a provider, not a caller-side special case | Its cost profile (plan limits, no per-call bill) belongs in the same routing table as everything else |
 | 7 | Codex success judged by the staged file, never agent prose | Prose-scraping an output path is how an earlier CLI route broke |
 | 8 | `--json` result names the serving provider/model | After routing, only the backend knows what actually ran |
+| 9 | Billing kind is declared per spec and filterable, never inferred from price | A caller choosing an unpaid path must get a guarantee, not a best effort; a $0 quote is not the same claim as "no per-call charge" |
 | 10 | References are role-typed and validated against per-model rules before spend | Model reference rules differ and conflict (counts, exclusivity, forced durations); a rejected or misread reference still bills |
 | 11 | `--draft` is a model-declared tier, not a caller guess | Practitioners draft cheap and finalize selected shots; the cheap tier differs per model |
-| 9 | Billing kind is declared per spec and filterable, never inferred from price | A caller choosing an unpaid path must get a guarantee, not a best effort; a $0 quote is not the same claim as "no per-call charge" |
 
 ## Appendix B: Files expected to change
 
