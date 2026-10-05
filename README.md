@@ -180,6 +180,44 @@ echo "A dragon" | generate "photorealistic, 8k, cinematic lighting"
 generate --api "A futuristic city" -m nano-banana-2
 ```
 
+## Providers, billing, and routing
+
+One model name can be offered by several providers. `config/routing.yaml` says
+which one serves it; `--via <provider>` picks another for one call.
+
+| Provider | Billing | Notes |
+|---|---|---|
+| google, openai, replicate | metered | Direct APIs |
+| atlas | metered | Reseller for image, video, and audio models; prices quoted with `--quote` |
+| codex | plan | Codex `$imagegen`; draws on Codex plan limits; agentic and slower |
+| agy | plan | Antigravity CLI; draws on the signed-in Google plan; agentic and slower |
+
+`--billing plan` never reaches a metered path, and `--billing metered` never
+reaches a plan path; if no matching path exists the command fails and names
+the alternatives. Video is always metered.
+
+Atlas notes: Veo through Atlas has audio off unless `--param generate_audio=true`
+(direct Veo has audio on), so compare like with like. The free `/calculate`
+endpoint sits behind an edge rate limit; space out bulk price checks.
+
+## Long jobs
+
+Async jobs are recorded under `~/.cache/generate/jobs/` before the first poll.
+If a job outlives `--wait` (defaults: image 120 s, video 600 s, audio 300 s),
+`generate` exits 75 and prints `generate --resume <id>`. A submit is never
+retried automatically, because a second submit is a second paid job.
+
+## References
+
+`--ref <role>=<path|url>` with roles `start`, `end`, `identity`, `style`,
+`object`, `location`; `--ref-note <n>=<text>` says what the n-th one is for.
+Each model's reference rules (counts, combinations that are not allowed,
+durations they force) are checked before anything is sent.
+
+## Exit codes
+
+`0` done, `1` failed, `2` rejected before anything was sent, `75` still running.
+
 ## Authentication & Keychain
 
 `generate` automatically pulls credentials from the **macOS Keychain** if the corresponding environment variable is not explicitly set in your shell:
@@ -189,6 +227,7 @@ generate --api "A futuristic city" -m nano-banana-2
 | Gemini / Google | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `NANOBANANA_API_KEY` | Gemini Nano Banana and Veo video models |
 | OpenAI | `OPENAI_API_KEY` | `OPENAI_API_KEY`, `OPENAI_PROJECT_API_KEY` | GPT-Image models |
 | Replicate | `REPLICATE_API_TOKEN` | `REPLICATE_API_TOKEN`, `REPLICATE_API_KEY` | Flux models |
+| Atlas Cloud | `ATLASCLOUD_API_KEY` | `ATLASCLOUD_API_KEY` | Atlas models (`--via atlas`) |
 | Remove.bg | `REMOVE_BG_API_KEY` | `REMOVE_BG_API_KEY` | `--remove-bg` feature |
 
 > **Note:** If an environment variable is set, it takes precedence. Otherwise, `generate` checks the macOS Keychain automatically. Nanobanana models use the local Gemini CLI extension by default if installed and do not require an API key unless `--api` is passed. Veo video models always use the Gemini API.
