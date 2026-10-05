@@ -1,6 +1,6 @@
 # Add Atlas Cloud and Codex as Providers, with Resumable Async Jobs and Cost-Based Routing
 
-**Status:** Draft (design approved in conversation 2026-10-04; awaiting spec review)
+**Status:** Approved 2026-10-04
 **Started:** 2026-10-04
 **Target:** generate-cli 1.4.0
 
@@ -74,6 +74,7 @@ Atlas Cloud resells ~336 media models (image, video, audio) behind one async API
 | `id` | Atlas model id for the base task (text-to-image / text-to-video / audio) |
 | `edit_id` | Image model id used when `-r` is given |
 | `i2v_id` | Video model id used when `-r` is given |
+| `r2v_id` | Video model id used for reference-to-video (identity/style/object/location refs without a start frame), e.g. Veo 3.1 reference-to-video |
 | `inputs` | Field mapping, as for Replicate: `image` (single URL field), `images` (array field), `max_images`, `end_image`, `duration`, `resolution`, `aspect_ratio`, `seed`, `negative_prompt` |
 | `resolution_values` | Map from CLI size presets to the model's enum |
 | `refs` | Reference capabilities, e.g. `{ start: 1, end: 1, identity: 3, exclusive: [[start, identity]], forces: { identity: { duration: 8 } }, max_people_warning: 4 }`. A role not listed is rejected for that model |
