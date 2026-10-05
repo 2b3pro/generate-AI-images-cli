@@ -91,7 +91,7 @@ models:
     r2v_id: google/veo3.1/reference-to-video
     kind: video
     billing: metered
-    description: Veo 3.1 via Atlas. Audio is off unless --param generate_audio=true. Identity refs force 8 s.
+    description: Veo 3.1 via Atlas. Sound OFF by default (--param generate_audio=true); direct Veo has sound on. Identity refs force 8 s.
     label_style: prose
     refs: { start: 1, end: 1, identity: 3, exclusive: [[start, identity], [end, identity]], forces: { identity: { duration: 8 }, end: { duration: 8 } } }
     draft: { model: veo-3.1-fast }
@@ -103,7 +103,7 @@ models:
     i2v_id: google/veo3.1-fast/image-to-video
     kind: video
     billing: metered
-    description: Veo 3.1 Fast via Atlas. Audio is off unless --param generate_audio=true.
+    description: Veo 3.1 Fast via Atlas. Sound OFF by default (--param generate_audio=true); direct Veo has sound on.
     label_style: prose
     refs: { start: 1, end: 1 }
     inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, aspect_ratio: aspect_ratio, seed: seed, negative_prompt: negative_prompt }
@@ -115,7 +115,7 @@ models:
     i2v_id: kwaivgi/kling-v3.0-pro/image-to-video
     kind: video
     billing: metered
-    description: Kling 3.0 Pro. Cinematic motion; --param sound=true for native audio; character elements via --param elements=[...].
+    description: Kling 3.0 Pro. Cinematic motion. Sound OFF by default (--param sound=true); character elements via --param elements=[...].
     refs: { start: 1, end: 1 }
     inputs: { image: image, end_image: end_image, duration: duration, resolution: resolution, resolution_values: { 1080p: 1080P }, negative_prompt: negative_prompt }
 
@@ -126,7 +126,7 @@ models:
     i2v_id: bytedance/seedance-2.0/image-to-video
     kind: video
     billing: metered
-    description: Seedance 2.0. Token-billed; quotes are estimates. Draft at 480p.
+    description: Seedance 2.0. Sound ON by default (--param generate_audio=false to mute). Token-billed; quotes are estimates. Draft at 480p.
     refs: { start: 1, end: 1 }
     draft: { resolution: 480p }
     inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, aspect_ratio: ratio, seed: seed }
@@ -140,7 +140,7 @@ models:
     i2v_id: bytedance/seedance-2.5/image-to-video
     kind: video
     billing: metered
-    description: Seedance 2.5. 4-30 s, audio on by default; token-billed, quotes are estimates. --param return_last_frame=true to chain shots.
+    description: Seedance 2.5. 4-30 s. Sound ON by default (--param generate_audio=false to mute); token-billed, quotes are estimates. --param return_last_frame=true to chain shots.
     refs: { start: 1, end: 1 }
     draft: { resolution: 480p }
     inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, aspect_ratio: ratio }
@@ -152,7 +152,7 @@ models:
     i2v_id: alibaba/wan-2.7/image-to-video
     kind: video
     billing: metered
-    description: Wan 2.7. 2-15 s.
+    description: Wan 2.7. 2-15 s. No generated sound; --param audio=<url> drives lip-sync from a supplied track (with a start image).
     label_style: wan-numbered
     refs: { start: 1, end: 1 }
     inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, resolution_values: { 720p: 720P, 1080p: 1080P }, seed: seed, negative_prompt: negative_prompt }

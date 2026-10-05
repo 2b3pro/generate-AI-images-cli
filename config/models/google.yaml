@@ -61,7 +61,7 @@ models:
     billing: metered
     draft: { model: veo-3.1-lite }
     direct_price: { usd: 0.40, unit: second, source: "https://ai.google.dev/gemini-api/docs/pricing (720p/1080p with audio)", checked: 2026-10-04 }
-    description: Veo 3.1. Cinematic 720p/1080p/4k video, 16:9 or 9:16, 4-8s, image-to-video via -r.
+    description: Veo 3.1. Cinematic 720p/1080p/4k video, 16:9 or 9:16, 4-8s, image-to-video via -r. Sound ON (native).
     aliases: [veo, veo-3.1-generate-preview]
     resolutions: [720p, 1080p, 4k]
 
@@ -71,7 +71,7 @@ models:
     billing: metered
     draft: { model: veo-3.1-lite }
     direct_price: { usd: 0.10, unit: second, source: "https://ai.google.dev/gemini-api/docs/pricing (720p with audio; 1080p is 0.12)", checked: 2026-10-04 }
-    description: Veo 3.1 Fast. Same features as Veo 3.1 with lower latency.
+    description: Veo 3.1 Fast. Same features as Veo 3.1 with lower latency. Sound ON (native).
     aliases: [veo-fast, veo-3.1-fast-generate-preview]
     resolutions: [720p, 1080p, 4k]
 
@@ -79,7 +79,7 @@ models:
     id: veo-3.1-lite-generate-preview
     kind: video
     billing: metered
-    description: Veo 3.1 Lite. Fast 4-8s clips at 720p/1080p, text- and image-to-video only.
+    description: Veo 3.1 Lite. Fast 4-8s clips at 720p/1080p, text- and image-to-video only. Sound ON (native).
     aliases: [veo-lite, veo-3.1-lite-generate-preview]
     resolutions: [720p, 1080p]
 
