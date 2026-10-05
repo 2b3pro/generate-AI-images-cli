@@ -50,7 +50,7 @@ Atlas Cloud resells ~336 media models (image, video, audio) behind one async API
 
 ### Registry: provider-neutral names plus routing
 
-- `Provider` gains `'atlas'` and `'codex'`; `ModelKind` gains `'audio'`.
+- `Provider` gains `'atlas'`, `'codex'`, and `'agy'`; `ModelKind` gains `'audio'`.
 - Several provider YAMLs may declare the same canonical name (e.g. `nano-banana-2` in both `google.yaml` and `atlas.yaml`). The registry stores specs keyed by `(name, provider)`.
 - `config/routing.yaml` maps a canonical name to its preferred provider:
   ```yaml
@@ -142,6 +142,14 @@ Mechanics copied from a field-tested restoration script (v1.6.0, ~300 production
 - Synchronous: no job record or `--resume`. A timeout kills the process; the run may still have consumed plan usage, which the error message says.
 - `config/models/codex.yaml` declares `gpt-image-2` (shared canonical name) with `agentic: true`, `billing: plan`, and `direct_price: { usd: 0, unit: "plan limits" }`. Plan usage is shared with every other use of the same Codex account, which the quote table notes.
 
+### Antigravity provider (`src/providers/agy.ts`)
+
+A second plan-billed agentic image path, billed against the owner's Gemini plan through the Antigravity CLI. Same staging, prompt shape, file-based success check, conversion, and cleanup as Codex; mechanics taken from the same field-tested script:
+
+- Invocation: `agy --dangerously-skip-permissions --sandbox --effort <effort> --prompt "<prompt>"` (effort from YAML, default `high`). `--sandbox` is mandatory and must not be configurable off, because permissions are skipped.
+- The CLI does not report which image model it used, so `config/models/agy.yaml` declares its own canonical name `agy-image` (`agentic: true`, `billing: plan`), and `--json` reports `provider_model_id: "agy default agent model"` rather than guessing.
+- Owner's field notes for selection guidance: generates well; weaker than Codex and Gemini at restoration; slower than Codex.
+
 ### Atlas provider (`src/providers/atlas.ts`)
 
 - Base URL `https://api.atlascloud.ai/api/v1`; `Authorization: Bearer <key>`; key from `ATLASCLOUD_API_KEY` env, then macOS Keychain service `ATLASCLOUD_API_KEY`, via the existing `resolveApiKey`.
@@ -164,9 +172,9 @@ For each canonical name declared by both Atlas and a direct provider: quote Atla
 1. **Job layer + tests**, with Veo refactored onto it (fixes the shipped timeout defect on its own).
 2. **Registry**: `atlas` provider, `audio` kind, multi-provider names, `routing.yaml`, `--via`, `--list-models` display.
 3. **Atlas provider**: client, upload, image/edit, video/i2v, audio; `--quote`, `--max-cost`, `--param`, `--jobs`, `--no-wait`, `--json`, `--reference-note`.
-4. **Codex provider**: staging, invocation, file-based success check, format conversion; tests with a stub `codex` binary on `PATH`.
+4. **Codex and Antigravity providers**: shared staging/convert/verify helper, then the two invocations; tests with stub `codex` and `agy` binaries on `PATH`.
 5. **Catalog + quote table**: populate `atlas.yaml`, record `direct_price` on overlapping direct specs, run the table, set `routing.yaml` by hand.
-6. **Live smoke**: one cheap generation per modality (image, edit, i2v, audio) plus one Codex edit with a reference image, about USD 1 total, run only with the owner's go-ahead.
+6. **Live smoke**: one cheap generation per modality (image, edit, i2v, audio) plus one Codex edit with a reference image and one Antigravity generation, about USD 1 total, run only with the owner's go-ahead.
 
 ## Risks
 
@@ -201,5 +209,5 @@ For each canonical name declared by both Atlas and a direct provider: quote Atla
 
 ## Appendix B: Files expected to change
 
-- New: `src/providers/atlas.ts`, `src/providers/codex.ts`, `config/models/codex.yaml`, `src/utils/jobs.ts`, `config/models/atlas.yaml`, `config/routing.yaml`, `scripts/quote-table.ts`, `src/**/*.test.ts`
+- New: `src/providers/atlas.ts`, `src/providers/codex.ts`, `src/providers/agy.ts`, `src/utils/staged-agent.ts`, `config/models/codex.yaml`, `config/models/agy.yaml`, `src/utils/jobs.ts`, `config/models/atlas.yaml`, `config/routing.yaml`, `scripts/quote-table.ts`, `src/**/*.test.ts`
 - Changed: `src/types.ts`, `src/config/models.ts`, `src/providers/index.ts`, `src/providers/google.ts`, `src/cli.ts`, `config/models/{google,openai,replicate}.yaml` (`direct_price` on overlapping models), `README.md`, `package.json` (version)
