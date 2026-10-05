@@ -213,3 +213,10 @@ test('--quote reports the variant id that was actually priced', async () => {
   const json = await run(req({ modelInput: 'vid-shared', quoteOnly: true }, { refs: [{ role: 'start', source: 'a' }] }), deps({ atlas }));
   expect(json.provider_model_id).toBe('vendor/vid/image-to-video');
 });
+
+test('resumed results report billing and agentic from the job record model', async () => {
+  writeRegistry(FIXTURE_FILES, FIXTURE_ROUTING);
+  writeJob({ id: 'b1', provider: 'atlas', model: 'img-shared', kind: 'image', output: '/tmp/o.png', submittedAt: '2026-10-04T00:00:00Z', status: 'completed', outputs: ['/tmp/o.png'] });
+  const json = await resumeJob('b1', {}, deps({}));
+  expect(json).toMatchObject({ billing: 'metered', agentic: false });
+});

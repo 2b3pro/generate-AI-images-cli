@@ -208,6 +208,12 @@ export async function resumeJob(id: string, opts: { waitSeconds?: number; onProg
   const record = readJob(id);
   if (!record) return fail(json, 1, `No job record for ${id}. List jobs with: generate --jobs`);
   json = { ...json, provider: record.provider, model: record.model, provider_model_id: record.provider_model_id ?? null, job_id: record.id, request: record.request ?? null };
+  try {
+    const spec = getModelSpec(record.model, record.provider);
+    json = { ...json, billing: spec.billing, agentic: Boolean(spec.agentic) };
+  } catch {
+    // Model no longer in config: report the job without billing rather than fail the resume.
+  }
   if (record.status === 'completed') return { ...json, ok: true, exit_code: 0, outputs: record.outputs ?? [] };
   if (record.status === 'failed') return fail(json, 1, record.error?.message ?? 'job failed');
 
