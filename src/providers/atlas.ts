@@ -133,9 +133,9 @@ export class AtlasProvider extends BaseProvider {
     return { spec, ...built, request };
   }
 
-  async quote(options: GenerateOptions): Promise<number> {
-    const { body } = await this.prepare(options);
-    return this.client.calculate(body);
+  async quote(options: GenerateOptions): Promise<{ usd: number; providerModelId: string }> {
+    const { body, modelId } = await this.prepare(options);
+    return { usd: await this.client.calculate(body), providerModelId: modelId };
   }
 
   async generate(options: GenerateOptions): Promise<GenerationResult> {

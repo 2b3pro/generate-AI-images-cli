@@ -118,6 +118,7 @@ export async function run(req: RunRequest, deps: RunDeps): Promise<ResultJson> {
       json.warnings.push(`price check failed: ${message(err)}`);
     }
     json.quote_usd = price?.usd ?? null;
+    if (price?.providerModelId) json.provider_model_id = price.providerModelId;
     if (req.quoteOnly) {
       return price ? { ...json, ok: true, exit_code: 0 } : fail(json, 1, `no price available for ${spec.name} via ${spec.provider}`);
     }

@@ -248,7 +248,7 @@ export interface ImageProvider {
   /** Continue a recorded async job */
   resume?(record: JobRecord, options: { waitSeconds?: number; onProgress?: (status: string) => void }): Promise<GenerationResult>;
   /** Price a request without running it */
-  quote?(options: GenerateOptions): Promise<number>;
+  quote?(options: GenerateOptions): Promise<{ usd: number; providerModelId?: string }>;
 }
 
 export const ASPECT_RATIO_TO_DIMENSIONS: Record<AspectRatio, { width: number; height: number }> = {

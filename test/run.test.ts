@@ -9,11 +9,11 @@ class FakeProvider implements ImageProvider {
   name = 'fake';
   models = [];
   calls: { generate: GenerateOptions[]; quote: number; resume: number } = { generate: [], quote: 0, resume: 0 };
-  quote?: (o: GenerateOptions) => Promise<number>;
+  quote?: (o: GenerateOptions) => Promise<{ usd: number; providerModelId?: string }>;
   constructor(private result: GenerationResult = { success: true, outputPath: '/tmp/x.png' }, private price?: number) {}
   async generate(o: GenerateOptions) { this.calls.generate.push(o); return this.result; }
   async resume() { this.calls.resume++; return this.result; }
-  withQuote() { this.quote = async () => { this.calls.quote++; return this.price!; }; return this; }
+  withQuote(providerModelId?: string) { this.quote = async () => { this.calls.quote++; return { usd: this.price!, providerModelId }; }; return this; }
 }
 
 function deps(map: Partial<Record<Provider, FakeProvider>>): RunDeps {
@@ -205,4 +205,11 @@ describe('real config drafts', () => {
     expect(json.exit_code).toBe(0);
     expect(google.calls.generate[0].model).toBe('veo-3.1-lite');
   });
+});
+
+test('--quote reports the variant id that was actually priced', async () => {
+  writeRegistry(FIXTURE_FILES, FIXTURE_ROUTING);
+  const atlas = new FakeProvider(undefined, 0.43).withQuote('vendor/vid/image-to-video');
+  const json = await run(req({ modelInput: 'vid-shared', quoteOnly: true }, { refs: [{ role: 'start', source: 'a' }] }), deps({ atlas }));
+  expect(json.provider_model_id).toBe('vendor/vid/image-to-video');
 });

@@ -122,8 +122,8 @@ describe('AtlasProvider jobs', () => {
     const ref = path.join(tmpDir(), 'face.png');
     fs.writeFileSync(ref, 'png');
     const s = scripted([json({ url: 'https://t/face' }), json({ data: { price: 0.05 } })]);
-    const usd = await new AtlasProvider(new AtlasClient('k', s.impl)).quote({ model: 'img-shared', prompt: 'p', refs: [{ role: 'identity', source: ref }] });
-    expect(usd).toBe(0.05);
+    const quoted = await new AtlasProvider(new AtlasClient('k', s.impl)).quote({ model: 'img-shared', prompt: 'p', refs: [{ role: 'identity', source: ref }] });
+    expect(quoted).toEqual({ usd: 0.05, providerModelId: 'vendor/img/edit' });
     expect(s.posts.some((u) => u.includes('/generate'))).toBe(false);
   });
 });
