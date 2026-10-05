@@ -36,7 +36,10 @@ Atlas Cloud resells ~336 media models (image, video, audio) behind one async API
 7. `generate -m gpt-image-2 --via codex ...` generates or edits an image through Codex, including role-labelled reference images.
 8. `--json` prints one result object naming the provider and model that actually served the request, so callers can stamp provenance after routing.
 9. Every model spec declares how it is paid for (`billing: metered` per call, or `billing: plan` against a subscription's limits), and `--billing plan` never reaches a metered path.
-10. Existing model names, flags, defaults, and output paths keep working unchanged.
+10. Reference images carry a **role** (start frame, end frame, identity, style, object, location), and every model-specific reference rule (counts, mutually exclusive roles, forced durations) is checked **before** any quote or submission.
+11. `--draft` produces a cheap preview of the same request on a model-declared draft tier.
+12. Every output is reproducible from its record: the prompt actually sent, seed, parameters, references by role, provider, model, and cost.
+13. Existing model names, flags, defaults, and output paths keep working unchanged; untyped `-r` keeps its current meaning.
 
 ## Non-goals
 
@@ -73,6 +76,9 @@ Atlas Cloud resells ~336 media models (image, video, audio) behind one async API
 | `i2v_id` | Video model id used when `-r` is given |
 | `inputs` | Field mapping, as for Replicate: `image` (single URL field), `images` (array field), `max_images`, `end_image`, `duration`, `resolution`, `aspect_ratio`, `seed`, `negative_prompt` |
 | `resolution_values` | Map from CLI size presets to the model's enum |
+| `refs` | Reference capabilities, e.g. `{ start: 1, end: 1, identity: 3, exclusive: [[start, identity]], forces: { identity: { duration: 8 } }, max_people_warning: 4 }`. A role not listed is rejected for that model |
+| `label_style` | How references are named in the prompt: `prose` (Veo), `at-index` (`@Image1`, Seedance/Kling), `wan-numbered` (videos numbered first, images continue the count) |
+| `draft` | Draft tier: `{ model: <canonical name> }` or `{ resolution: 480p }` |
 | `billing` | Required on every spec in every provider file: `metered` (charged per call) or `plan` (draws on a subscription's usage limits) |
 | `direct_price` | (optional, on direct-provider specs) list price used by the quote table: `{ usd, unit, source, checked }` |
 
@@ -117,7 +123,24 @@ interface JobRecord {
 | `--param key=value` | Repeatable; sets a model-specific top-level request field (Atlas) |
 | `--billing <plan\|metered\|any>` | Restrict to plan-billed (subscription limits) or metered (per-call) paths; see Registry |
 | `--json` | Print a single JSON result to stdout (progress goes to stderr); see below |
-| `--reference-note <i>=<text>` | Repeatable; states what reference image *i* is for (e.g. `1=face of the man in the centre only`). Codex puts it next to the path; API providers append it to the prompt |
+| `--ref <role>=<path\|url>` | Repeatable, role-typed reference. Roles: `start`, `end`, `identity`, `style`, `object`, `location`. Untyped `-r` stays as today (image models: references; video models: start frame) |
+| `--ref-note <n>=<text>` | Repeatable; says what the *n*-th `--ref` is for (e.g. `1=face of the man in the centre only`). Rendered next to the reference in the model's label style |
+| `--draft` | Run the request on the model's declared draft tier (cheaper model or lower resolution); output gets a `.draft` suffix |
+
+### Reference validation (before any spend)
+
+Run after routing resolves the spec and before `--quote`, `--max-cost`, or submission:
+
+- each `--ref` role is declared by the spec and within its count;
+- no two roles from the same `exclusive` group (e.g. Seedance start/end frames vs identity refs; Veo identity refs vs extension);
+- `forces` are applied and announced (Veo identity refs force 8 s), so the quote reflects the real request;
+- a warning, not an error, when the prompt names more people than `max_people_warning`.
+
+A failed check exits 2 with the rule that failed and nothing is sent. Field-tested model rules (sources in the research note) are encoded here, not in callers.
+
+### Provenance
+
+The job record and the `--json` result both carry `request`: `{ prompt_sent, seed, params, refs: [{ role, path, uploaded_url, note }], draft }`. For image outputs written by the CLI, the same fields are also embedded as XMP/EXIF when `exiftool` is available.
 
 ### Result object (`--json`)
 
@@ -136,7 +159,7 @@ Mechanics copied from a field-tested restoration script (v1.6.0, ~300 production
 - Requires `codex` on `PATH` and a logged-in session; otherwise fail with the `codex login` hint.
 - Agent model and reasoning effort come from YAML (`agent_model`, `reasoning_effort`), never from code.
 - Stage directory created with `mktemp -d` **inside the output directory** (`.generate-codex.XXXXXX`), so the sandboxed agent can write to it.
-- Prompt on stdin: `Use $imagegen to ...`; primary image as an absolute path labelled "edit target"; each reference as an absolute path labelled "identity/color/detail only; never composite it" plus any `--reference-note`; the user prompt; then "Save the selected image as a PNG exactly to: <stage file>. Do not create any other files. Do not modify any input image. Work autonomously without asking questions. Before finishing, verify the staged PNG exists, is non-empty, and is a valid image."
+- Prompt on stdin: `Use $imagegen to ...`; primary image as an absolute path labelled "edit target"; each reference as an absolute path labelled "identity/color/detail only; never composite it" plus its role and any `--ref-note`; the user prompt; then "Save the selected image as a PNG exactly to: <stage file>. Do not create any other files. Do not modify any input image. Work autonomously without asking questions. Before finishing, verify the staged PNG exists, is non-empty, and is a valid image."
 - Invocation: `codex exec --ephemeral --model <agent_model> --config model_reasoning_effort="<effort>" --sandbox workspace-write --skip-git-repo-check --cd <output dir>`.
 - Success is decided by the file, never by parsing agent prose: the staged PNG must exist and be non-empty; it is converted to the requested format (`sips`, else ImageMagick) and its real MIME type verified. The stage directory is always removed.
 - Synchronous: no job record or `--resume`. A timeout kills the process; the run may still have consumed plan usage, which the error message says.
@@ -161,7 +184,8 @@ A second plan-billed agentic image path, billed against the owner's Gemini plan 
 ### Starter catalog (`config/models/atlas.yaml`)
 
 Overlapping with direct providers: `nano-banana-2`, `nano-banana-pro`, `gpt-image-2`, `flux-2-pro`, `veo-3.1`, `veo-3.1-fast`.
-Atlas-only: Seedream 5.0 Pro and 4.5 (image/edit), Ideogram 4, Kling 3.0 Pro, Seedance 2.x, Wan 2.7/3.0, Hailuo 2.3 (video), MiniMax Music 3.0, Suno chirp-v5, ElevenLabs v3 TTS (audio).
+Atlas-only: Seedream 5.0 Pro and 4.5 (image/edit), Ideogram 4, Kling 3.0 / Kling Omni (O3), Seedance 2.0 and 2.5, Wan 2.7/3.0, MiniMax H3 (video; Hailuo 2.3 is legacy), Vidu Q3, MiniMax Music 3.0, Suno chirp-v5, ElevenLabs v3 TTS (audio).
+Market check 2026-10-04: Google's default video model is now Gemini Omni Flash (direct `google.yaml` candidate, and on Atlas if listed); Sora 2 left the OpenAI API on 2026-09-24, so no Sora entry.
 Each entry is verified against its reference page during implementation; any id that cannot be confirmed is left out rather than guessed.
 
 ### Price comparison (`scripts/quote-table.ts`)
@@ -172,7 +196,7 @@ For each canonical name declared by both Atlas and a direct provider: quote Atla
 
 1. **Job layer + tests**, with Veo refactored onto it (fixes the shipped timeout defect on its own).
 2. **Registry**: `atlas` provider, `audio` kind, multi-provider names, `routing.yaml`, `--via`, `--list-models` display.
-3. **Atlas provider**: client, upload, image/edit, video/i2v, audio; `--quote`, `--max-cost`, `--param`, `--jobs`, `--no-wait`, `--json`, `--reference-note`.
+3. **Atlas provider**: client, upload, image/edit, video/i2v, audio; `--quote`, `--max-cost`, `--param`, `--jobs`, `--no-wait`, `--json`, `--ref`/`--ref-note`, `--draft`.
 4. **Codex and Antigravity providers**: shared staging/convert/verify helper, then the two invocations; tests with stub `codex` and `agy` binaries on `PATH`.
 5. **Catalog + quote table**: populate `atlas.yaml`, record `direct_price` on overlapping direct specs, run the table, set `routing.yaml` by hand.
 6. **Live smoke**: one cheap generation per modality (image, edit, i2v, audio) plus one Codex edit with a reference image and one Antigravity generation, about USD 1 total, run only with the owner's go-ahead.
@@ -206,6 +230,8 @@ For each canonical name declared by both Atlas and a direct provider: quote Atla
 | 6 | Codex is a provider, not a caller-side special case | Its cost profile (plan limits, no per-call bill) belongs in the same routing table as everything else |
 | 7 | Codex success judged by the staged file, never agent prose | Prose-scraping an output path is how an earlier CLI route broke |
 | 8 | `--json` result names the serving provider/model | After routing, only the backend knows what actually ran |
+| 10 | References are role-typed and validated against per-model rules before spend | Model reference rules differ and conflict (counts, exclusivity, forced durations); a rejected or misread reference still bills |
+| 11 | `--draft` is a model-declared tier, not a caller guess | Practitioners draft cheap and finalize selected shots; the cheap tier differs per model |
 | 9 | Billing kind is declared per spec and filterable, never inferred from price | A caller choosing an unpaid path must get a guarantee, not a best effort; a $0 quote is not the same claim as "no per-call charge" |
 
 ## Appendix B: Files expected to change
