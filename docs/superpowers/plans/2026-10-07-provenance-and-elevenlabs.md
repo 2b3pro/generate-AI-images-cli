@@ -151,7 +151,7 @@ git commit -m "fix(provenance): stamp creator tool and IPTC source type, never t
 **Interfaces:**
 - Produces: `Provider` gains `'elevenlabs'`; `ElevenEndpoint = 'tts' | 'dialogue' | 'sound' | 'music' | 'video-to-music'`; `ModelSpec.endpoint?: ElevenEndpoint`; `GenerateOptions.voices?: string[]`; `ENDPOINT_MAX_SECONDS`; `priceFor` handles `unit: '1k_chars'` and `unit: 'minute'`.
 
-- [ ] **Step 1: Write the failing test** — `test/cost.test.ts`:
+- [ ] **Step 1: Write the failing test** in `test/cost.test.ts`:
 
 ```ts
 import { expect, test } from 'bun:test';
@@ -240,7 +240,7 @@ git commit -m "feat(types): elevenlabs provider, endpoint field, --voice values,
 **Interfaces:**
 - Produces: `ELEVEN_BASE`; `class ElevenLabsClient { constructor(apiKey: string, fetchImpl?: typeof fetch, base?: string); postJson(path: string, body: Record<string, unknown>): Promise<{ bytes: ArrayBuffer; contentType: string }>; postForm(path: string, form: FormData): Promise<{ bytes: ArrayBuffer; contentType: string }>; listVoices(): Promise<{ voice_id: string; name: string; category?: string }[]> }`; `resolveVoice(ref: string, voices: { voice_id: string; name: string }[]): string`.
 
-- [ ] **Step 1: Write the failing test** — `test/elevenlabs-client.test.ts`:
+- [ ] **Step 1: Write the failing test** in `test/elevenlabs-client.test.ts`:
 
 ```ts
 import { describe, expect, test } from 'bun:test';
@@ -677,7 +677,7 @@ git commit -m "feat(elevenlabs): provider for tts, dialogue, sound effects, musi
 - Modify: `README.md`, `package.json`
 - Test: `test/cli.test.ts` (one case)
 
-- [ ] **Step 1: Write the failing CLI test** — append to `test/cli.test.ts`:
+- [ ] **Step 1: Write the failing CLI test** Append to `test/cli.test.ts`:
 
 ```ts
 test('--voice reaches the provider (a malformed dialogue pair is rejected before any network call)', () => {
