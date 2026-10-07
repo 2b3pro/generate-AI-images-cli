@@ -2,21 +2,32 @@ import pkg from '../../package.json';
 import type { ResultJson } from '../run';
 
 const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
+const IPTC_SOURCE = 'http://cv.iptc.org/newscodes/digitalsourcetype/';
 
-/** Embed provider, model, and the exact request into image XMP. No-op without exiftool. */
+/** IPTC Digital Source Type: generated from scratch, or an AI edit of supplied images. */
+export function digitalSourceType(json: ResultJson): string {
+  const edited = (json.request?.refs?.length ?? 0) > 0;
+  return IPTC_SOURCE + (edited ? 'compositeWithTrainedAlgorithmicMedia' : 'trainedAlgorithmicMedia');
+}
+
+/**
+ * Mark images as made by generate. Writes only the creator tool and the IPTC
+ * Digital Source Type; the human caption fields are never touched (the full
+ * request lives in the job record and --json). No-op without exiftool.
+ */
 export async function stampProvenance(paths: string[], json: ResultJson): Promise<void> {
   const exiftool = Bun.which('exiftool');
   if (!exiftool) return;
-  const description = JSON.stringify({
-    provider: json.provider,
-    model: json.model,
-    provider_model_id: json.provider_model_id,
-    billing: json.billing,
-    request: json.request,
-  });
   for (const file of paths.filter((p) => IMAGE_EXT.test(p))) {
     const proc = Bun.spawn(
-      [exiftool, '-q', '-overwrite_original', `-XMP-xmp:CreatorTool=generate ${pkg.version} (${json.provider}/${json.model})`, `-XMP-dc:Description=${description}`, file],
+      [
+        exiftool,
+        '-q',
+        '-overwrite_original',
+        `-XMP-xmp:CreatorTool=generate ${pkg.version} (${json.provider}/${json.model})`,
+        `-XMP-iptcExt:DigitalSourceType=${digitalSourceType(json)}`,
+        file,
+      ],
       { stdout: 'ignore', stderr: 'pipe' }
     );
     const code = await proc.exited;
