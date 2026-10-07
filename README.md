@@ -191,6 +191,7 @@ which one serves it; `--via <provider>` picks another for one call.
 | atlas | metered | Reseller for image, video, and audio models; prices quoted with `--quote` |
 | codex | plan | Codex `$imagegen`; draws on Codex plan limits; agentic and slower |
 | agy | plan | Antigravity CLI; draws on the signed-in Google plan; agentic and slower |
+| elevenlabs | metered | Speech in your own voices, dialogue, sound effects, music, video-to-music |
 
 `--billing plan` never reaches a metered path, and `--billing metered` never
 reaches a plan path; if no matching path exists the command fails and names
@@ -228,6 +229,7 @@ durations they force) are checked before anything is sent.
 | OpenAI | `OPENAI_API_KEY` | `OPENAI_API_KEY`, `OPENAI_PROJECT_API_KEY` | GPT-Image models |
 | Replicate | `REPLICATE_API_TOKEN` | `REPLICATE_API_TOKEN`, `REPLICATE_API_KEY` | Flux models |
 | Atlas Cloud | `ATLASCLOUD_API_KEY` | `ATLASCLOUD_API_KEY` | Atlas models (`--via atlas`) |
+| ElevenLabs | `ELEVENLABS_API_KEY` | `ELEVENLABS_API_KEY` | ElevenLabs models (`eleven-*`, `--voices`) |
 | Remove.bg | `REMOVE_BG_API_KEY` | `REMOVE_BG_API_KEY` | `--remove-bg` feature |
 
 > **Note:** If an environment variable is set, it takes precedence. Otherwise, `generate` checks the macOS Keychain automatically. Nanobanana models use the local Gemini CLI extension by default if installed and do not require an API key unless `--api` is passed. Veo video models always use the Gemini API.

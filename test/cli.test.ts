@@ -16,7 +16,7 @@ beforeEach(() => {
   const root = writeRegistry(FIXTURE_FILES, FIXTURE_ROUTING);
   const jobs = tmpDir('gen-jobs-');
   process.env.GENERATE_JOBS_DIR = jobs;
-  env = { ...(process.env as Record<string, string>), GENERATE_MODELS_DIR: path.join(root, 'models'), GENERATE_JOBS_DIR: jobs, ATLASCLOUD_API_KEY: 'test-key' };
+  env = { ...(process.env as Record<string, string>), GENERATE_MODELS_DIR: path.join(root, 'models'), GENERATE_JOBS_DIR: jobs, ATLASCLOUD_API_KEY: 'test-key', ELEVENLABS_API_KEY: 'test-key' };
 });
 afterAll(useRealRegistry);
 
@@ -62,5 +62,11 @@ describe('cli', () => {
   test('--json keeps stdout to exactly one JSON document', () => {
     const r = cli(['-m', 'vid-shared', 'walk', '--billing', 'plan', '--json']);
     expect(r.stdout.trim().split('\n')).toHaveLength(1);
+  });
+
+  test('--voice reaches the provider (a malformed dialogue pair is rejected before any network call)', () => {
+    const r = cli(['-m', 'el-dialogue', 'A: hi', '--voice', 'A', '--json']);
+    expect(r.code).toBe(1);
+    expect(JSON.parse(r.stdout).error).toMatch(/look like Speaker=<name\|id>/);
   });
 });

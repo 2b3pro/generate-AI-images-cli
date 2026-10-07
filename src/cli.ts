@@ -14,6 +14,8 @@ import { parseParams } from './params';
 import { listJobs } from './utils/jobs';
 import { stampProvenance } from './utils/provenance';
 import { resumeJob, runVariations, type ResultJson, type RunDeps } from './run';
+import { ElevenLabsClient } from './providers/elevenlabs-client';
+import { resolveApiKey } from './utils/keychain';
 import pkg from '../package.json';
 
 // Load config/models/*.yaml up front so a broken or missing config fails with
@@ -84,6 +86,18 @@ if (process.argv.includes('--jobs')) {
       if (j.error) console.log(chalk.dim(`    ${j.error.message}`));
     }
   }
+  process.exit(0);
+}
+
+if (process.argv.includes('--voices')) {
+  const key = resolveApiKey(['ELEVENLABS_API_KEY']);
+  if (!key) {
+    console.error(chalk.red('ELEVENLABS_API_KEY is required for --voices'));
+    process.exit(1);
+  }
+  const voices = await new ElevenLabsClient(key).listVoices();
+  if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(voices) + '\n');
+  else for (const v of voices) console.log(`${v.voice_id}  ${v.name}${v.category ? chalk.dim(`  (${v.category})`) : ''}`);
   process.exit(0);
 }
 
@@ -189,6 +203,8 @@ program
   .option('--param <key=value>', 'Model-specific request field; repeatable', collect, [])
   .option('--ref <role=path>', 'Role-typed reference (start|end|identity|style|object|location); repeatable', collect, [])
   .option('--ref-note <n=text>', 'What the n-th --ref is for; repeatable', collect, [])
+  .option('--voice <ref>', 'ElevenLabs voice id or name; for dialogue, Speaker=<id|name> (repeatable)', collect, [])
+  .option('--voices', 'List ElevenLabs voices on your account and exit')
   .option('--draft', "Run on the model's cheaper draft tier; output gets a .draft suffix")
   .option('--json', 'Print one JSON result to stdout; progress goes to stderr')
   .action(async (promptArgs: string[], opts) => {
@@ -260,6 +276,7 @@ program
           output: outputPath,
           referenceImages: opts.reference,
           refs,
+          voices: opts.voice as string[],
           params,
           transparent: opts.transparent,
           removeBg: opts.removeBg,
@@ -381,6 +398,10 @@ ${chalk.bold('Examples:')}
   ${chalk.dim('# Cheap draft first, then the final on the same settings')}
   $ generate -m veo-3.1 "waves at night" --draft
   $ generate -m veo-3.1 "waves at night"
+
+  ${chalk.dim('# Sound effects for a silent clip, then a score fitted to it')}
+  $ generate -m eleven-sfx "waves crashing on rocks, distant gulls" --duration 5 -o waves.mp3
+  $ generate -m eleven-video-to-music "calm, hopeful piano" -r clip.mp4 -o score.mp3
 
   ${chalk.dim('# Long jobs: return immediately, finish later')}
   $ generate -m seedance-2 "city timelapse" --no-wait

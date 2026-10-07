@@ -165,15 +165,9 @@ models:
     billing: metered
     description: MiniMax Music 3.0. Prompt describes the music; pass --param lyrics=... or --param is_instrumental=true.
 
-  # https://www.atlascloud.ai/models/elevenlabs/v3/text-to-speech (read 2026-10-04): text (max 5000); voice from a 21-id enum
-  elevenlabs-v3-tts:
-    id: elevenlabs/v3/text-to-speech
-    kind: audio
-    billing: metered
-    description: ElevenLabs v3 text to speech. Voice via --param voice=<voice id>.
-    inputs: { prompt: text }
 
 # Removed 2026-10-04 after verify-atlas-models.ts: ideogram/v4/quality/text-to-image
 # (price check needs an undocumented image_size_obj field) and suno/chirp-v5 (not found).
 # Not added until confirmed on a reference page: Gemini Omni Flash,
 # Kling Omni (O3), MiniMax H3, Vidu Q3. (Seedance 2.5 added 2026-10-05.)
+# Removed 2026-10-07: elevenlabs/v3/text-to-speech (preset voices only; the direct ElevenLabs provider covers it).

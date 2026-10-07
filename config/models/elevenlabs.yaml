@@ -1,0 +1,57 @@
+# ElevenLabs direct API (https://api.elevenlabs.io). Synchronous; returns audio.
+# Field names from the API reference, read 2026-10-07.
+#   endpoint   tts | dialogue | sound | music | video-to-music
+#   billing    metered (per character or per minute, list prices below)
+# TTS/dialogue need --voice (id or name; `generate --voices` lists yours).
+# Sound and music take --duration (seconds). Video-to-music takes the clip with -r.
+
+provider: elevenlabs
+
+models:
+  eleven-v4:
+    id: eleven_v4
+    kind: audio
+    billing: metered
+    endpoint: tts
+    description: ElevenLabs v4 speech in your own, cloned, or library voices. --voice required. Inline tags like [laughs].
+    direct_price: { usd: 0.08, unit: 1k_chars, source: "https://elevenlabs.io/pricing/api", checked: 2026-10-07 }
+
+  eleven-v3:
+    id: eleven_v3
+    kind: audio
+    billing: metered
+    endpoint: tts
+    description: ElevenLabs v3 speech. --voice required.
+    direct_price: { usd: 0.08, unit: 1k_chars, source: "https://elevenlabs.io/pricing/api", checked: 2026-10-07 }
+
+  eleven-dialogue:
+    id: eleven_v4
+    kind: audio
+    billing: metered
+    endpoint: dialogue
+    description: 'Multi-voice dialogue. Prompt lines written as "Speaker: line"; --voice Speaker=<voice> per speaker (max 10). Keep under 2,000 characters.'
+    direct_price: { usd: 0.08, unit: 1k_chars, source: "https://elevenlabs.io/pricing/api", checked: 2026-10-07 }
+
+  eleven-sfx:
+    id: eleven_text_to_sound_v2
+    kind: audio
+    billing: metered
+    endpoint: sound
+    description: Sound effects and foley, 0.5-30 s (--duration). --param loop=true for a seamless loop.
+    direct_price: { usd: 0.12, unit: minute, source: "https://elevenlabs.io/pricing/api", checked: 2026-10-07 }
+
+  eleven-music:
+    id: music_v2_5
+    kind: audio
+    billing: metered
+    endpoint: music
+    description: Eleven Music v2.5, 3-600 s (--duration). --param force_instrumental=true for no vocals.
+    direct_price: { usd: 0.15, unit: minute, source: "https://elevenlabs.io/pricing/api", checked: 2026-10-07 }
+
+  eleven-video-to-music:
+    id: music_v2_5
+    kind: audio
+    billing: metered
+    endpoint: video-to-music
+    description: Scores a video clip (-r clip.mp4, up to 10 clips / 600 s). Prompt is an optional description of the music.
+    direct_price: { usd: 0.15, unit: minute, source: "https://elevenlabs.io/pricing/api", checked: 2026-10-07 }
