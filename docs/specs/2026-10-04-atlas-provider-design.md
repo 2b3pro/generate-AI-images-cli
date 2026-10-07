@@ -239,3 +239,20 @@ For each canonical name declared by both Atlas and a direct provider: quote Atla
 
 - New: `src/providers/atlas.ts`, `src/providers/codex.ts`, `src/providers/agy.ts`, `src/utils/staged-agent.ts`, `config/models/codex.yaml`, `config/models/agy.yaml`, `src/utils/jobs.ts`, `config/models/atlas.yaml`, `config/routing.yaml`, `scripts/quote-table.ts`, `src/**/*.test.ts`
 - Changed: `src/types.ts`, `src/config/models.ts`, `src/providers/index.ts`, `src/providers/google.ts`, `src/cli.ts`, `config/models/{google,openai,replicate}.yaml` (`direct_price` on overlapping models), `README.md`, `package.json` (version)
+
+---
+
+## Addendum (2026-10-07): 1.4.1 provenance fix and 1.5 ElevenLabs provider
+
+Approved as prerequisites in a downstream design (D19, D22). Field names below were read from the ElevenLabs API reference on 2026-10-07.
+
+### 1.4.1 Provenance stays out of the caption
+The 1.4.0 stamp wrote the request JSON to `XMP-dc:Description`, which photo tools, wikis and the Metadata Working Group composites treat as the human caption. From 1.4.1 the image stamp writes only `XMP-xmp:CreatorTool` (`generate <version> (<provider>/<model>)`) and `XMP-iptcExt:DigitalSourceType`: `http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia` for generated images, `.../compositeWithTrainedAlgorithmicMedia` when reference images were supplied (an AI edit of a real image). The full request stays in the job record and `--json`. An existing description is never modified.
+
+### 1.5 ElevenLabs as a direct provider
+- Provider `elevenlabs`, base `https://api.elevenlabs.io`, header `xi-api-key`, key from `ELEVENLABS_API_KEY` (env, then Keychain). All endpoints used are synchronous and return audio bytes; no job records.
+- Model YAML gains `endpoint`: `tts` (`POST /v1/text-to-speech/{voice_id}`, body `text`, `model_id`), `dialogue` (`POST /v1/text-to-dialogue`, body `inputs: [{text, voice_id}]`, `model_id`; max 10 voices, keep text ≤ 2,000 chars), `sound` (`POST /v1/sound-generation`, body `text`, `duration_seconds` 0.5-30, `loop`, `prompt_influence`, `model_id`), `music` (`POST /v1/music`, body `prompt` ≤ 4,100 chars, `music_length_ms` 3,000-600,000, `model_id`, `force_instrumental`), `video-to-music` (`POST /v1/music/video-to-music`, multipart `videos[]` files ≤ 10 / 200 MB / 600 s, `description` ≤ 1,000 chars, `model_id`).
+- New flag `--voice <ref>` (repeatable). TTS takes one voice; dialogue takes `Speaker=<ref>` pairs and a prompt written as `Speaker: line` per line. A `<ref>` is a voice id or a voice name resolved through `GET /v2/voices` (case-insensitive exact match; ambiguous or missing names fail with the candidates listed). `generate --voices` lists the account's voices.
+- `--duration` maps to `duration_seconds` (sound) or `music_length_ms` (music). Video-to-music takes its input clip(s) from `-r`.
+- Pricing (list, 2026-10-07): TTS and dialogue $0.08 per 1,000 characters (`unit: 1k_chars`), sound effects $0.12/min, music $0.15/min (`unit: minute`). `--max-cost` estimates from prompt length or `--duration`; without a duration it assumes the endpoint maximum (sound 30 s, music 600 s), so a cap refuses rather than guesses low.
+- The Atlas `elevenlabs-v3-tts` entry is removed (preset voices only, dearer).
