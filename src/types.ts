@@ -1,4 +1,4 @@
-export type Provider = 'replicate' | 'openai' | 'google' | 'atlas' | 'codex' | 'agy';
+export type Provider = 'replicate' | 'openai' | 'google' | 'atlas' | 'codex' | 'agy' | 'elevenlabs';
 
 /**
  * Canonical model name as listed in config/models/*.yaml (e.g. "nano-banana-2",
@@ -17,6 +17,12 @@ export const REF_ROLES: RefRole[] = ['start', 'end', 'identity', 'style', 'objec
 
 /** How references are named inside the prompt sent to the model */
 export type LabelStyle = 'prose' | 'at-index' | 'wan-numbered';
+
+/** ElevenLabs endpoint a model spec maps to */
+export type ElevenEndpoint = 'tts' | 'dialogue' | 'sound' | 'music' | 'video-to-music';
+
+/** Longest output each ElevenLabs endpoint can return, for worst-case price estimates */
+export const ENDPOINT_MAX_SECONDS: Partial<Record<ElevenEndpoint, number>> = { sound: 30, music: 600, 'video-to-music': 600 };
 
 export interface RoleRef {
   role: RefRole;
@@ -115,6 +121,8 @@ export interface ModelSpec {
   reasoning_effort?: string;
   /** Agent providers: process timeout in seconds (default 600) */
   timeout_seconds?: number;
+  /** ElevenLabs: which endpoint this model uses */
+  endpoint?: ElevenEndpoint;
 
   // ---- Provider-specific capability flags (all optional) ----
   /** OpenAI: model accepts reference images via the images.edit endpoint */
@@ -215,6 +223,8 @@ export interface GenerateOptions {
   noWait?: boolean;
   /** Request is running on a draft tier */
   draft?: boolean;
+  /** --voice values: an id or name (TTS), or Speaker=<id|name> pairs (dialogue) */
+  voices?: string[];
   /** @deprecated No-op since 2026-09-06 — the Gemini API is the only image
    *  route. Kept so existing callers passing --api do not break. */
   useApi?: boolean;

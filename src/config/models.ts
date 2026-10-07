@@ -17,7 +17,7 @@ import type { Billing, Model, ModelKind, ModelSpec, ObsoleteModel, Provider } fr
  * routing.yaml: $GENERATE_ROUTING_FILE, else the models directory's parent.
  */
 
-const KNOWN_PROVIDERS: Provider[] = ['replicate', 'openai', 'google', 'atlas', 'codex', 'agy'];
+const KNOWN_PROVIDERS: Provider[] = ['replicate', 'openai', 'google', 'atlas', 'codex', 'agy', 'elevenlabs'];
 const KNOWN_KINDS: ModelKind[] = ['image', 'video', 'audio'];
 const KNOWN_BILLING: Billing[] = ['metered', 'plan'];
 
