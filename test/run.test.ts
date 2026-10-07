@@ -220,3 +220,29 @@ test('resumed results report billing and agentic from the job record model', asy
   const json = await resumeJob('b1', {}, deps({}));
   expect(json).toMatchObject({ billing: 'metered', agentic: false });
 });
+
+describe('duration guards (review fixes)', () => {
+  test('a non-number duration is rejected before anything is priced or sent', async () => {
+    const elevenlabs = new FakeProvider();
+    const json = await run(req({ modelInput: 'el-sfx', maxCost: 1 }, { duration: Number.NaN }), deps({ elevenlabs }));
+    expect(json.exit_code).toBe(2);
+    expect(json.error).toMatch(/--duration must be a number/);
+    expect(elevenlabs.calls.generate).toHaveLength(0);
+  });
+  test('endpoint duration ranges are enforced before spend', async () => {
+    const elevenlabs = new FakeProvider();
+    expect((await run(req({ modelInput: 'el-sfx' }, { duration: 45 }), deps({ elevenlabs }))).error).toMatch(/0\.5-30 s/);
+    expect((await run(req({ modelInput: 'el-music' }, { duration: 2 }), deps({ elevenlabs }))).error).toMatch(/3-600 s/);
+    expect(elevenlabs.calls.generate).toHaveLength(0);
+  });
+  test('video-to-music rejects --duration (the clip sets the length)', async () => {
+    const json = await run(req({ modelInput: 'el-v2m' }, { duration: 10 }), deps({ elevenlabs: new FakeProvider() }));
+    expect(json.exit_code).toBe(2);
+    expect(json.error).toMatch(/clip sets the length/);
+  });
+  test('the result records whether reference images were supplied', async () => {
+    const google = new FakeProvider();
+    expect((await run(req({}, { referenceImages: ['/tmp/a.png'] }), deps({ google }))).refs_supplied).toBe(true);
+    expect((await run(req(), deps({ google }))).refs_supplied).toBe(false);
+  });
+});

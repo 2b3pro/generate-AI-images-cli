@@ -24,6 +24,9 @@ export type ElevenEndpoint = 'tts' | 'dialogue' | 'sound' | 'music' | 'video-to-
 /** Longest output each ElevenLabs endpoint can return, for worst-case price estimates */
 export const ENDPOINT_MAX_SECONDS: Partial<Record<ElevenEndpoint, number>> = { sound: 30, music: 600, 'video-to-music': 600 };
 
+/** Accepted --duration range (seconds) per ElevenLabs endpoint */
+export const ENDPOINT_DURATION_RANGE: Partial<Record<ElevenEndpoint, [number, number]>> = { sound: [0.5, 30], music: [3, 600] };
+
 export interface RoleRef {
   role: RefRole;
   /** Local path or http(s) URL */

@@ -49,3 +49,10 @@ describe('resolveVoice', () => {
   test('an ambiguous name fails and lists candidates', () => expect(() => resolveVoice('SAGE', voices)).toThrow(/ambiguous.*BBBB.*CCCC/));
   test('an unknown name fails and lists available names', () => expect(() => resolveVoice('Zed', voices)).toThrow(/No voice named "Zed".*Nova/));
 });
+
+test('a success response that is not audio is an error, not a .bin file', async () => {
+  const { impl } = fakeFetch([new Response('oops', { headers: { 'content-type': 'text/plain' } }), new Response('{}', { headers: { 'content-type': 'application/problem+json' } })]);
+  const c = new ElevenLabsClient('k', impl);
+  await expect(c.postJson('/v1/music', {})).rejects.toThrow(/not audio/);
+  await expect(c.postJson('/v1/music', {})).rejects.toThrow(/instead of audio|not audio/);
+});

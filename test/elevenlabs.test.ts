@@ -102,3 +102,11 @@ describe('ElevenLabsProvider', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe('review fixes', () => {
+  test('--param cannot override the fields the price was based on', async () => {
+    const { client, calls } = fake([audio()]);
+    await new ElevenLabsProvider(client).generate({ model: 'el-music', prompt: 'piano', duration: 3, params: { music_length_ms: 600000, prompt: 'other', force_instrumental: true }, output: path.join(tmpDir(), 'm.mp3') });
+    expect(body(calls[0])).toMatchObject({ prompt: 'piano', music_length_ms: 3000, force_instrumental: true });
+  });
+});

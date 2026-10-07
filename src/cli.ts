@@ -163,7 +163,7 @@ program
   )
   .option('-o, --output <path>', 'Output file path')
   .option('-r, --reference <path...>', 'Reference image(s) for style/composition or image-to-video (repeatable)')
-  .option('--duration <seconds>', 'Video duration in seconds: 4, 6, or 8 (Veo models)', parseInt)
+  .option('--duration <seconds>', 'Duration in seconds: video length (Veo 4/6/8), sound effects 0.5-30, music 3-600', parseFloat)
   .option('--resolution <res>', 'Video/image resolution: 720p|1080p|4k (video; 1080p/4k force 8s), 512|1K|2K|4K (Google image)')
   .option('--fps <number>', 'Video frame rate (e.g. 24, 30)', parseInt)
   .option('--transparent', 'Enable transparent background (where supported)')

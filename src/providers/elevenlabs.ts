@@ -59,7 +59,7 @@ export class ElevenLabsProvider extends BaseProvider {
           const ref = options.voices?.[0];
           if (!ref) return { success: false, error: `${spec.name} needs --voice <name|id> (see generate --voices)` };
           const voiceId = await this.voice(ref);
-          sent = { text: options.prompt, model_id: spec.id, ...params };
+          sent = { ...params, text: options.prompt, model_id: spec.id };
           result = await this.client.postJson(`/v1/text-to-speech/${voiceId}`, sent);
           break;
         }
@@ -71,16 +71,16 @@ export class ElevenLabsProvider extends BaseProvider {
             map[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
           }
           for (const k of Object.keys(map)) map[k] = await this.voice(map[k]);
-          sent = { inputs: buildDialogueInputs(options.prompt, map), model_id: spec.id, ...params };
+          sent = { ...params, inputs: buildDialogueInputs(options.prompt, map), model_id: spec.id };
           result = await this.client.postJson('/v1/text-to-dialogue', sent);
           break;
         }
         case 'sound':
-          sent = { text: options.prompt, model_id: spec.id, ...(options.duration !== undefined && { duration_seconds: options.duration }), ...params };
+          sent = { ...params, text: options.prompt, model_id: spec.id, ...(options.duration !== undefined && { duration_seconds: options.duration }) };
           result = await this.client.postJson('/v1/sound-generation', sent);
           break;
         case 'music':
-          sent = { prompt: options.prompt, model_id: spec.id, ...(options.duration !== undefined && { music_length_ms: Math.round(options.duration * 1000) }), ...params };
+          sent = { ...params, prompt: options.prompt, model_id: spec.id, ...(options.duration !== undefined && { music_length_ms: Math.round(options.duration * 1000) }) };
           result = await this.client.postJson('/v1/music', sent);
           break;
         case 'video-to-music': {
@@ -90,8 +90,8 @@ export class ElevenLabsProvider extends BaseProvider {
           for (const clip of clips) form.append('videos[]', Bun.file(fs.realpathSync(clip)), path.basename(clip));
           if (options.prompt) form.append('description', options.prompt);
           form.append('model_id', spec.id);
-          for (const [k, v] of Object.entries(params)) form.append(k, typeof v === 'string' ? v : JSON.stringify(v));
-          sent = { description: options.prompt, model_id: spec.id, videos: clips, ...params };
+          for (const [k, v] of Object.entries(params)) if (!['videos[]', 'description', 'model_id'].includes(k)) form.append(k, typeof v === 'string' ? v : JSON.stringify(v));
+          sent = { ...params, description: options.prompt, model_id: spec.id, videos: clips };
           result = await this.client.postForm('/v1/music/video-to-music', form);
           break;
         }

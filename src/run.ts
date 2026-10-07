@@ -1,5 +1,6 @@
 import path from 'path';
 import type { Billing, GenerateOptions, GenerationResult, ImageProvider, ModelSpec, Provider, RequestRecord } from './types';
+import { ENDPOINT_DURATION_RANGE } from './types';
 import { getModelSpec, resolveModel, selectSpec, type BillingFilter } from './config/models';
 import { validateRefs } from './refs';
 import { priceFor } from './cost';
@@ -21,6 +22,8 @@ export interface ResultJson {
   error: string | null;
   exit_code: ExitCode;
   pending?: boolean;
+  /** Reference images were supplied (drives the IPTC digital source type) */
+  refs_supplied?: boolean;
   warnings: string[];
 }
 
@@ -96,7 +99,24 @@ export async function run(req: RunRequest, deps: RunDeps): Promise<ResultJson> {
     options.draft = true;
   }
 
-  json = { ...json, provider: spec.provider, model: spec.name, provider_model_id: spec.id, billing: spec.billing, agentic: Boolean(spec.agentic) };
+  json = {
+    ...json,
+    provider: spec.provider,
+    model: spec.name,
+    provider_model_id: spec.id,
+    billing: spec.billing,
+    agentic: Boolean(spec.agentic),
+    refs_supplied: (options.referenceImages?.length ?? 0) + (options.refs?.length ?? 0) > 0,
+  };
+
+  if (options.duration !== undefined) {
+    if (!Number.isFinite(options.duration) || options.duration <= 0) return fail(json, 2, `--duration must be a number of seconds above 0; got ${options.duration}`);
+    if (spec.endpoint === 'video-to-music') return fail(json, 2, `${spec.name} does not take --duration: the clip sets the length`);
+    const range = spec.endpoint ? ENDPOINT_DURATION_RANGE[spec.endpoint] : undefined;
+    if (range && (options.duration < range[0] || options.duration > range[1])) {
+      return fail(json, 2, `${spec.name} takes --duration ${range[0]}-${range[1]} s; got ${options.duration}`);
+    }
+  }
 
   const check = validateRefs(spec, options.refs ?? [], { duration: options.duration });
   json.warnings.push(...check.warnings);

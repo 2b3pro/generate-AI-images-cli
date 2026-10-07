@@ -6,7 +6,7 @@ const IPTC_SOURCE = 'http://cv.iptc.org/newscodes/digitalsourcetype/';
 
 /** IPTC Digital Source Type: generated from scratch, or an AI edit of supplied images. */
 export function digitalSourceType(json: ResultJson): string {
-  const edited = (json.request?.refs?.length ?? 0) > 0;
+  const edited = Boolean(json.refs_supplied) || (json.request?.refs?.length ?? 0) > 0;
   return IPTC_SOURCE + (edited ? 'compositeWithTrainedAlgorithmicMedia' : 'trainedAlgorithmicMedia');
 }
 

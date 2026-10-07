@@ -36,3 +36,8 @@ test.skipIf(!Bun.which('exiftool'))('a file with no caption gets none from the s
   await stampProvenance([file], result(0));
   expect(tag(file, '-XMP-dc:Description')).toBe('');
 });
+
+test('composite when reference images were supplied, even without a request record', () => {
+  const json = { provider: 'openai', model: 'gpt-image-2', refs_supplied: true } as unknown as ResultJson;
+  expect(digitalSourceType(json)).toBe('http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia');
+});

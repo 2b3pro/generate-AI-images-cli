@@ -21,3 +21,16 @@ test('without --duration the estimate assumes the endpoint maximum', async () =>
   const music = await priceFor(spec({ endpoint: 'music', direct_price: { usd: 0.15, unit: 'minute' } }), provider, { model: 'm', prompt: 'p' });
   expect(music?.usd).toBeCloseTo(1.5);
 });
+
+test.skipIf(!Bun.which('ffmpeg'))('video-to-music is priced from the clip length, not --duration', async () => {
+  const { tmpDir } = await import('./helpers/registry');
+  const clip = `${tmpDir()}/c.mp4`;
+  Bun.spawnSync(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=duration=2:size=64x64:rate=10', '-pix_fmt', 'yuv420p', clip]);
+  const p = await priceFor(spec({ endpoint: 'video-to-music', direct_price: { usd: 0.15, unit: 'minute' } }), provider, { model: 'm', prompt: 'p', referenceImages: [clip] });
+  expect(p?.usd).toBeCloseTo((0.15 * 2) / 60, 3);
+});
+
+test('a non-finite estimate is no price at all (so a cap refuses)', async () => {
+  const p = await priceFor(spec({ endpoint: 'music', direct_price: { usd: 0.15, unit: 'minute' } }), provider, { model: 'm', prompt: 'p', duration: Number.NaN });
+  expect(p).toBeUndefined();
+});

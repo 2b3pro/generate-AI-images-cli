@@ -19,7 +19,10 @@ export class ElevenLabsClient {
   private async audio(res: Response): Promise<{ bytes: ArrayBuffer; contentType: string }> {
     const contentType = res.headers.get('content-type') ?? '';
     if (!res.ok) throw new Error(`ElevenLabs request failed (HTTP ${res.status}): ${await errorMessage(res)}`);
-    if (contentType.includes('application/json')) throw new Error(`ElevenLabs returned JSON instead of audio: ${await errorMessage(res)}`);
+    if (contentType.includes('json')) throw new Error(`ElevenLabs returned JSON instead of audio: ${await errorMessage(res)}`);
+    if (!/^audio\//.test(contentType) && !contentType.startsWith('application/octet-stream')) {
+      throw new Error(`ElevenLabs response is not audio (content-type "${contentType || 'missing'}")`);
+    }
     return { bytes: await res.arrayBuffer(), contentType };
   }
 
