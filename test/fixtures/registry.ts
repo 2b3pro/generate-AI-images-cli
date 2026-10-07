@@ -70,6 +70,35 @@ models:
     reasoning_effort: high
     direct_price: { usd: 0, unit: plan limits }
 `,
+  'elevenlabs.yaml': `
+provider: elevenlabs
+models:
+  el-tts:
+    id: eleven_v4
+    kind: audio
+    billing: metered
+    endpoint: tts
+  el-dialogue:
+    id: eleven_v4
+    kind: audio
+    billing: metered
+    endpoint: dialogue
+  el-sfx:
+    id: eleven_text_to_sound_v2
+    kind: audio
+    billing: metered
+    endpoint: sound
+  el-music:
+    id: music_v2_5
+    kind: audio
+    billing: metered
+    endpoint: music
+  el-v2m:
+    id: music_v2_5
+    kind: audio
+    billing: metered
+    endpoint: video-to-music
+`,
   'agy.yaml': `
 provider: agy
 models:

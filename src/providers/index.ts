@@ -6,6 +6,7 @@ import { GoogleProvider } from './google';
 import { AtlasProvider } from './atlas';
 import { CodexProvider } from './codex';
 import { AgyProvider } from './agy';
+import { ElevenLabsProvider } from './elevenlabs';
 
 const providers: Map<Provider, ImageProvider> = new Map();
 
@@ -31,6 +32,9 @@ export function getOrCreateProvider(providerName: Provider): ImageProvider {
         break;
       case 'agy':
         provider = new AgyProvider();
+        break;
+      case 'elevenlabs':
+        provider = new ElevenLabsProvider();
         break;
       default:
         throw new Error(`Unknown provider: ${providerName}`);
@@ -74,4 +78,4 @@ export function listModels(): {
   }));
 }
 
-export { ReplicateProvider, OpenAIProvider, GoogleProvider, AtlasProvider, CodexProvider, AgyProvider };
+export { ReplicateProvider, OpenAIProvider, GoogleProvider, AtlasProvider, CodexProvider, AgyProvider, ElevenLabsProvider };
