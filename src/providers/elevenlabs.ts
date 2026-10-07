@@ -87,10 +87,11 @@ export class ElevenLabsProvider extends BaseProvider {
           const clips = options.referenceImages ?? [];
           if (clips.length === 0) return { success: false, error: `${spec.name} needs the video clip(s) to score, passed with -r` };
           const form = new FormData();
-          for (const clip of clips) form.append('videos[]', Bun.file(fs.realpathSync(clip)), path.basename(clip));
+          // The live API wants the field named `videos` (the reference's curl example shows `videos[]`, which returns 422).
+          for (const clip of clips) form.append('videos', Bun.file(fs.realpathSync(clip)), path.basename(clip));
           if (options.prompt) form.append('description', options.prompt);
           form.append('model_id', spec.id);
-          for (const [k, v] of Object.entries(params)) if (!['videos[]', 'description', 'model_id'].includes(k)) form.append(k, typeof v === 'string' ? v : JSON.stringify(v));
+          for (const [k, v] of Object.entries(params)) if (!['videos', 'description', 'model_id'].includes(k)) form.append(k, typeof v === 'string' ? v : JSON.stringify(v));
           sent = { ...params, description: options.prompt, model_id: spec.id, videos: clips };
           result = await this.client.postForm('/v1/music/video-to-music', form);
           break;

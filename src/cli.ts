@@ -16,6 +16,7 @@ import { stampProvenance } from './utils/provenance';
 import { resumeJob, runVariations, type ResultJson, type RunDeps } from './run';
 import { ElevenLabsClient } from './providers/elevenlabs-client';
 import { resolveApiKey } from './utils/keychain';
+import { writeStdoutSync } from './utils/stdout';
 import pkg from '../package.json';
 
 // Load config/models/*.yaml up front so a broken or missing config fails with
@@ -75,7 +76,7 @@ if (process.argv.includes('--list-models')) {
 if (process.argv.includes('--jobs')) {
   const jobs = listJobs();
   if (process.argv.includes('--json')) {
-    process.stdout.write(JSON.stringify(jobs) + '\n');
+    writeStdoutSync(JSON.stringify(jobs) + '\n');
   } else if (jobs.length === 0) {
     console.log('No recorded jobs.');
   } else {
@@ -96,7 +97,7 @@ if (process.argv.includes('--voices')) {
     process.exit(1);
   }
   const voices = await new ElevenLabsClient(key).listVoices();
-  if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(voices) + '\n');
+  if (process.argv.includes('--json')) writeStdoutSync(JSON.stringify(voices) + '\n');
   else for (const v of voices) console.log(`${v.voice_id}  ${v.name}${v.category ? chalk.dim(`  (${v.category})`) : ''}`);
   process.exit(0);
 }
@@ -312,7 +313,7 @@ function rejected(code: 1 | 2, error: string): ResultJson {
 function emitResult(json: ResultJson, jsonMode: boolean, spinner: Ora): never {
   if (jsonMode) {
     spinner.stop();
-    process.stdout.write(JSON.stringify(json) + '\n');
+    writeStdoutSync(JSON.stringify(json) + '\n');
     process.exit(json.exit_code);
   }
   for (const w of json.warnings) console.error(chalk.yellow(`Warning: ${w}`));

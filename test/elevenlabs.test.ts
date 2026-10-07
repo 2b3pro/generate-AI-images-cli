@@ -82,7 +82,7 @@ describe('ElevenLabsProvider', () => {
     expect(body(calls[0])).toEqual({ prompt: 'warm piano', model_id: 'music_v2_5', music_length_ms: 20000, force_instrumental: true });
   });
 
-  test('video-to-music uploads -r clips as videos[] with the description', async () => {
+  test('video-to-music uploads -r clips as videos with the description', async () => {
     const dir = tmpDir();
     const clip = path.join(dir, 'clip.mp4');
     fs.writeFileSync(clip, 'MP4');
@@ -90,7 +90,8 @@ describe('ElevenLabsProvider', () => {
     const r = await new ElevenLabsProvider(client).generate({ model: 'el-v2m', prompt: 'gentle, hopeful', referenceImages: [clip], output: path.join(dir, 'score.mp3') });
     expect(r.success).toBe(true);
     const form = calls[0].init?.body as FormData;
-    expect(form.getAll('videos[]')).toHaveLength(1);
+    expect(form.getAll('videos')).toHaveLength(1);
+    expect(form.getAll('videos[]')).toHaveLength(0);
     expect(form.get('description')).toBe('gentle, hopeful');
     expect(form.get('model_id')).toBe('music_v2_5');
   });

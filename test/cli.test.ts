@@ -69,4 +69,16 @@ describe('cli', () => {
     expect(r.code).toBe(1);
     expect(JSON.parse(r.stdout).error).toMatch(/look like Speaker=<name\|id>/);
   });
+
+  test('--json output larger than a pipe buffer arrives complete', () => {
+    for (let i = 0; i < 300; i++) {
+      writeJob({ id: `big-${i}`, provider: 'atlas', model: 'img-shared', kind: 'image', output: `/tmp/${'x'.repeat(200)}-${i}.png`, submittedAt: '2026-10-04T00:00:00Z', status: 'completed', outputs: [`/tmp/${'y'.repeat(200)}-${i}.png`] });
+    }
+    // Through a real shell pipe: the reader drains slowly, which is where process.exit() truncated output.
+    const piped = Bun.spawnSync(['sh', '-c', `bun "${CLI}" --jobs --json | (sleep 0.2; cat)`], { env, stdout: 'pipe', stderr: 'pipe' });
+    const out = piped.stdout.toString();
+    expect(out.length).toBeGreaterThan(65536);
+    expect(JSON.parse(out)).toHaveLength(300);
+  });
 });
+
