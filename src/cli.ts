@@ -10,6 +10,7 @@ import type { AspectRatio, Provider, RoleRef } from './types';
 import { DEFAULT_OPTIONS } from './types';
 import { getModelSpec, listModelSpecs, loadModelRegistry, modelsConfigDir, resolveModel } from './config/models';
 import { attachNotes, parseRefArg } from './refs';
+import { besideClip, contactSheet, extractFrame, frameOutputPath, splitFrameSpec, type FrameResult } from './frames';
 import { parseParams } from './params';
 import { listJobs } from './utils/jobs';
 import { stampProvenance } from './utils/provenance';
@@ -171,7 +172,13 @@ program
   .option('--remove-bg', 'Remove background after generation using remove.bg API')
   .option('--add-bg <hex>', 'Add background color to transparent image (e.g., "#EAE9DF")')
   .option('-n, --negative-prompt <text>', 'Negative prompt (things to avoid)')
-  .option('--thumbnail [size]', 'Generate thumbnail (default: 256px)', parseInt)
+  .option('--thumbnail [size]', 'Generate thumbnail (default: 256px); for video, of the middle frame', parseInt)
+  .option('--filmstrip [frames]', 'For video outputs: also save one row of N frames with timestamps (default: 6)', parseInt)
+  .option('--frame <video@time>', 'Save one frame of a video as PNG and exit; time is first, last, seconds, MM:SS, HH:MM:SS or N%')
+  .option('--sheet <video>', 'Save a contact sheet of a video (12 frames, first to last) and exit')
+  .option('--every <seconds>', 'With --sheet: one frame every N seconds', parseFloat)
+  .option('--scenes [threshold]', 'With --sheet: the first frame plus one per scene change (threshold 0-1, default 0.3)', parseFloat)
+  .option('--strip', 'With --sheet: one row instead of a grid')
   .option('--variations <n>', 'Generate N variations (1-10)', (val) => {
     const n = parseInt(val);
     if (isNaN(n) || n < 1 || n > 10) throw new Error('Variations must be 1-10');
@@ -202,7 +209,7 @@ program
   .option('--resume <id>', 'Finish a recorded job and download its outputs')
   .option('--jobs', 'List recorded jobs and exit')
   .option('--param <key=value>', 'Model-specific request field; repeatable', collect, [])
-  .option('--ref <role=path>', 'Role-typed reference (start|end|identity|style|object|location); repeatable', collect, [])
+  .option('--ref <role=path>', 'Role-typed reference (start|end|identity|style|object|location); repeatable. A video path takes a frame: start=prev.mp4@last', collect, [])
   .option('--ref-note <n=text>', 'What the n-th --ref is for; repeatable', collect, [])
   .option('--voice <ref>', 'ElevenLabs voice id or name; for dialogue, Speaker=<id|name> (repeatable)', collect, [])
   .option('--voices', 'List ElevenLabs voices on your account and exit')
@@ -220,6 +227,10 @@ program
 
     if (opts.resume) {
       emitResult(await resumeJob(opts.resume, { waitSeconds, onProgress }, deps), jsonMode, spinner);
+    }
+
+    if (opts.frame || opts.sheet) {
+      emitResult(await frameMode(opts), jsonMode, spinner);
     }
 
     const cliPrompt = promptArgs.length > 0 ? promptArgs.join(' ') : (opts.prompt || '');
@@ -258,8 +269,24 @@ program
     if (kind === 'video' && /\.(png|jpg|jpeg|webp)$/i.test(outputPath)) outputPath = outputPath.replace(/\.(png|jpg|jpeg|webp)$/i, '.mp4');
     if (kind === 'audio' && /\.(png|jpg|jpeg|webp|mp4)$/i.test(outputPath)) outputPath = outputPath.replace(/\.(png|jpg|jpeg|webp|mp4)$/i, '.mp3');
 
+    // A video ref (start=prev.mp4@last) becomes a still next to the output, before any price check.
+    const refFrames: string[] = [];
+    const refWarnings: string[] = [];
+    try {
+      refs = refs.map((ref, i) => {
+        const { path: video, at } = splitFrameSpec(ref.source);
+        if (!at) return ref;
+        const frame = extractFrame(video, at, besideClip(outputPath, `ref${i + 1}-${ref.role}`));
+        refFrames.push(frame.path);
+        refWarnings.push(...frame.warnings);
+        return { ...ref, source: frame.path };
+      });
+    } catch (err) {
+      emitResult(withFrames(rejected(2, err instanceof Error ? err.message : String(err)), refFrames, refWarnings), jsonMode, spinner);
+    }
+
     const variationCount = kind === 'image' ? opts.variations || 1 : 1;
-    const result = await runVariations(
+    let result = await runVariations(
       {
         modelInput: opts.model,
         via: opts.via as Provider | undefined,
@@ -299,15 +326,52 @@ program
       variationCount,
       deps
     );
+    result = withFrames(result, refFrames, refWarnings);
+    if (opts.filmstrip && kind !== 'video') result.warnings.push('--filmstrip applies to video outputs; ignored');
     if (result.ok && !result.pending && !opts.quote) {
-      const error = await postProcess(result.outputs, { removeBg: opts.removeBg, addBg: opts.addBg, thumbnail: opts.thumbnail }, onProgress);
-      if (error) emitResult({ ...result, ok: false, exit_code: 1, error }, jsonMode, spinner);
+      const post = await postProcess(result.outputs, { removeBg: opts.removeBg, addBg: opts.addBg, thumbnail: opts.thumbnail, filmstrip: opts.filmstrip }, onProgress);
+      if (post.frames.length > 0) {
+        try {
+          await stampProvenance(post.frames, result);
+        } catch (err) {
+          post.warnings.push(`provenance stamp failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      result = withFrames(result, post.frames, post.warnings);
+      if (post.error) emitResult({ ...result, ok: false, exit_code: 1, error: post.error }, jsonMode, spinner);
     }
     emitResult(result, jsonMode, spinner);
   });
 
 function rejected(code: 1 | 2, error: string): ResultJson {
   return { ok: false, provider: null, model: null, provider_model_id: null, outputs: [], job_id: null, quote_usd: null, billing: null, agentic: false, request: null, error, exit_code: code, warnings: [] };
+}
+
+/** Add stills and their warnings (each once) to a result; the frames key appears only when there are some. */
+function withFrames(json: ResultJson, frames: string[], warnings: string[]): ResultJson {
+  const out = { ...json, warnings: [...json.warnings] };
+  if (frames.length > 0) out.frames = [...(json.frames ?? []), ...frames];
+  for (const w of warnings) if (!out.warnings.includes(w)) out.warnings.push(w);
+  return out;
+}
+
+/** --frame and --sheet: stills from a video. No model, nothing sent. */
+async function frameMode(opts: { frame?: string; sheet?: string; output?: string; every?: number; scenes?: number | boolean; strip?: boolean }): Promise<ResultJson> {
+  let frame: FrameResult;
+  try {
+    if (opts.frame) {
+      const { path: video, at } = splitFrameSpec(opts.frame);
+      if (!at) return rejected(2, `--frame expects <video>@<time>, e.g. clip.mp4@last or clip.mp4@12.5; got "${opts.frame}"`);
+      frame = extractFrame(video, at, opts.output ?? frameOutputPath(video, at));
+    } else {
+      const video = opts.sheet as string;
+      const strip = Boolean(opts.strip);
+      frame = await contactSheet(video, { every: opts.every, scenes: opts.scenes, strip }, opts.output ?? besideClip(video, strip ? 'strip' : 'sheet'));
+    }
+  } catch (err) {
+    return rejected(1, err instanceof Error ? err.message : String(err));
+  }
+  return { ...rejected(1, ''), ok: true, exit_code: 0, error: null, outputs: [frame.path], warnings: frame.warnings };
 }
 
 function emitResult(json: ResultJson, jsonMode: boolean, spinner: Ora): never {
@@ -342,7 +406,11 @@ function emitResult(json: ResultJson, jsonMode: boolean, spinner: Ora): never {
   } else {
     console.log(chalk.bold('  Output:'), chalk.cyan(json.outputs[0] ?? '(none)'));
   }
-  console.log(chalk.bold('  Model:'), `${json.model} via ${json.provider} (${json.billing})`);
+  if (json.frames?.length) {
+    console.log(chalk.bold('  Frames:'));
+    for (const p of json.frames) console.log(`    ${chalk.cyan(p)}`);
+  }
+  if (json.model) console.log(chalk.bold('  Model:'), `${json.model} via ${json.provider} (${json.billing})`);
   if (json.job_id) console.log(chalk.bold('  Job:'), json.job_id);
   console.log(chalk.dim('─'.repeat(50)));
   console.log();
@@ -406,6 +474,13 @@ ${chalk.bold('Examples:')}
   ${chalk.dim('# Sound effects for a silent clip, then a score fitted to it')}
   $ generate -m eleven-sfx "waves crashing on rocks, distant gulls" --duration 5 -o waves.mp3
   $ generate -m eleven-video-to-music "calm, hopeful piano" -r clip.mp4 -o score.mp3
+
+  ${chalk.dim('# Stills from video (needs ffmpeg; nothing is sent)')}
+  $ generate --sheet clip.mp4
+  $ generate --frame clip.mp4@0:03.25 -o still.png
+
+  ${chalk.dim('# Extend a clip from its exact last frame; check the new one with a film strip')}
+  $ generate -m kling-3-pro "she turns to the window" --ref start=take1.mp4@last --filmstrip
 
   ${chalk.dim('# Long jobs: return immediately, finish later')}
   $ generate -m seedance-2 "city timelapse" --no-wait

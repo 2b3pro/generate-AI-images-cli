@@ -1,5 +1,7 @@
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { existsSync } from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import { writeJob } from '../src/utils/jobs';
 import { FIXTURE_FILES, FIXTURE_ROUTING } from './fixtures/registry';
 import { tmpDir, useRealRegistry, writeRegistry } from './helpers/registry';
@@ -82,3 +84,70 @@ describe('cli', () => {
   });
 });
 
+
+describe.skipIf(!Bun.which('ffmpeg'))('cli frames', () => {
+  let dir: string;
+  let clip: string;
+
+  beforeAll(() => {
+    dir = tmpDir('gen-cli-frames-');
+    clip = path.join(dir, 'clip.mp4');
+    const r = Bun.spawnSync(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=s=160x90:r=24:d=2', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', clip], { stderr: 'pipe' });
+    if (r.exitCode !== 0) throw new Error(r.stderr.toString());
+  });
+
+  test('--frame writes one still and exits without a prompt or model', () => {
+    const out = path.join(dir, 'still.png');
+    const r = cli(['--frame', `${clip}@last`, '-o', out, '--json']);
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ ok: true, outputs: [out], model: null });
+    expect(existsSync(out)).toBe(true);
+  });
+
+  test('--frame without a time selector exits 2', () => {
+    const r = cli(['--frame', clip, '--json']);
+    expect(r.code).toBe(2);
+    expect(JSON.parse(r.stdout).error).toMatch(/--frame expects <video>@<time>/);
+  });
+
+  test('--sheet --strip --every lays the samples out in one row next to the clip', async () => {
+    const r = cli(['--sheet', clip, '--strip', '--every', '0.5', '--json']);
+    expect(r.code).toBe(0);
+    const out = path.join(dir, 'clip_strip.png');
+    expect(JSON.parse(r.stdout).outputs).toEqual([out]);
+    expect(await sharp(out).metadata()).toMatchObject({ width: 4 * 320 + 3 * 4, height: 180 });
+  });
+
+  test('without ffmpeg on PATH, --frame fails with a message naming it', () => {
+    const r = Bun.spawnSync([process.execPath, CLI, '--frame', `${clip}@first`, '--json'], { env: { ...env, PATH: '/usr/bin:/bin' }, stdout: 'pipe', stderr: 'pipe' });
+    expect(r.exitCode).toBe(1);
+    expect(JSON.parse(r.stdout.toString()).error).toMatch(/ffmpeg not found on PATH/);
+  });
+
+  test('--ref start=<video>@last extracts the frame before refs are checked, and reports it', () => {
+    const out = path.join(dir, 'next.mp4');
+    const r = cli(['-m', 'vid-shared', 'walk', '-o', out, '--ref', `start=${clip}@last`, '--ref', 'identity=b.png', '--json']);
+    expect(r.code).toBe(2);
+    const json = JSON.parse(r.stdout);
+    expect(json.error).toMatch(/cannot combine start and identity/);
+    expect(json.frames).toEqual([path.join(dir, 'next_ref1-start.png')]);
+    expect(existsSync(json.frames[0])).toBe(true);
+  });
+
+  test('after a generation, thumbnails land under frames and --filmstrip on an image job is a warning', () => {
+    const out = path.join(dir, 'img.png');
+    const stubEnv = { ...env, GENERATE_CODEX_BIN: path.resolve(import.meta.dir, 'fixtures/stub-agent.sh'), STUB_MODE: 'codex' };
+    const r = Bun.spawnSync(['bun', CLI, '-m', 'img-shared', '--via', 'codex', 'a dot', '-o', out, '--thumbnail', '--filmstrip', '--json'], { env: stubEnv, stdout: 'pipe', stderr: 'pipe' });
+    const json = JSON.parse(r.stdout.toString());
+    expect(r.exitCode).toBe(0);
+    expect(json.outputs).toEqual([out]);
+    expect(json.frames).toEqual([path.join(dir, 'img_thumb.png')]);
+    expect(json.warnings).toContain('--filmstrip applies to video outputs; ignored');
+  });
+
+  test('a video ref past the end of the clip exits 2 and sends nothing', () => {
+    const r = cli(['-m', 'vid-shared', 'walk', '-o', path.join(dir, 'x.mp4'), '--ref', `start=${clip}@99`, '--json']);
+    expect(r.code).toBe(2);
+    expect(JSON.parse(r.stdout).error).toMatch(/past the end/);
+  });
+});

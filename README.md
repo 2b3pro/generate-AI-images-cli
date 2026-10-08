@@ -60,7 +60,8 @@ cat prompt.txt | generate "make it cyberpunk"
 | `--remove-bg` | Remove background after generation (images) |
 | `--add-bg <hex>` | Add background color to transparent image |
 | `-n, --negative-prompt <text>` | Things to avoid (Gemini and FLUX fold this into the prompt text) |
-| `--thumbnail [size]` | Generate thumbnail (default: 256px) |
+| `--thumbnail [size]` | Generate thumbnail (default: 256px); for video, of the middle frame |
+| `--filmstrip [frames]` | For video outputs: also save one row of N frames with timestamps (default: 6) |
 | `--variations <n>` | Generate N variations (1-10) |
 | `--seed <number>` | Random seed for reproducibility |
 | `--steps <number>` | Number of inference steps |
@@ -222,6 +223,42 @@ retried automatically, because a second submit is a second paid job.
 `object`, `location`; `--ref-note <n>=<text>` says what the n-th one is for.
 Each model's reference rules (counts, combinations that are not allowed,
 durations they force) are checked before anything is sent.
+
+A video can stand in for an image reference: `--ref start=prev.mp4@last`
+takes that frame, saves it next to the output as `<output>_ref1-start.png`,
+and uses it. Times are `first`, `last`, seconds (`12.5`), `MM:SS`,
+`HH:MM:SS`, or a percentage (`40%`). `last` is the exact final frame, which
+is what extending a clip needs. The selector is read only after a video file
+name (`.mp4`, `.mov`, `.m4v`, `.webm`, `.mkv`), and a file that exists under
+the full name is taken as a path. `-r` is unchanged, so video-to-music still
+takes the whole clip.
+
+## Frames from video
+
+Needs `ffmpeg` and `ffprobe` on `PATH`; the rest of `generate` works without
+them. Nothing is sent anywhere and no model or API key is involved.
+
+```bash
+# One still: first, last, seconds, MM:SS, HH:MM:SS or N%  (default name: clip_last.png)
+generate --frame clip.mp4@last
+generate --frame clip.mp4@0:12.5 -o still.png
+
+# Contact sheet to choose a moment from: 12 frames, first to last (clip_sheet.png)
+generate --sheet clip.mp4
+generate --sheet clip.mp4 --every 2          # one frame every 2 s
+generate --sheet clip.mp4 --scenes           # the first frame plus one per scene change
+generate --sheet clip.mp4 --strip            # one row instead of a grid (clip_strip.png)
+
+# On a generation: a poster and a film strip of the new clip
+generate -m omni "waves at night" --thumbnail --filmstrip
+```
+
+Each tile is labelled with the time that gives back exactly that frame, so a
+label read off a sheet can go straight into `--frame clip.mp4@<label>` or a
+`--ref`. Sheets hold at most 48 frames. Thumbnails, strips and frames taken
+for refs are listed under `frames` in `--json`, never under `outputs`. A clip
+tagged HDR (HLG or PQ) gets a warning: its frames may look flat and grey,
+because `generate` does not tone-map.
 
 ## Exit codes
 

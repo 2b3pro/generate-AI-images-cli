@@ -24,6 +24,8 @@ export interface ResultJson {
   pending?: boolean;
   /** Reference images were supplied (drives the IPTC digital source type) */
   refs_supplied?: boolean;
+  /** Stills made alongside the outputs: thumbnails, film strips, frames taken from video refs */
+  frames?: string[];
   warnings: string[];
 }
 
