@@ -1,5 +1,6 @@
-# Google Gemini models (Nano Banana image family + Veo video family).
+# Google Gemini models (Nano Banana image family, Gemini Omni and Veo video).
 # Docs: https://ai.google.dev/gemini-api/docs/image-generation
+#       https://ai.google.dev/gemini-api/docs/omni
 #       https://ai.google.dev/gemini-api/docs/veo
 #
 # Each key under `models:` is the name you pass to `generate -m <name>`.
@@ -14,27 +15,42 @@
 #                 Requests above the ceiling fall back to the largest allowed.
 #                 Omit for models with no size control.
 #   resolutions   (video) accepted resolutions, first is the default.
-#                 1080p and 4k require an 8-second duration.
+#                 Veo: 1080p and 4k require an 8-second duration.
+#   api           (video) interactions = served by the Interactions API
+#                 (Gemini Omni); omitted = generateVideos (Veo).
+#   duration_range (video) [min, max] seconds; --duration outside it is refused.
 #
 # `obsolete:` entries make `generate` refuse a retired name with a migration hint.
 
 provider: google
 
 models:
+  # https://ai.google.dev/gemini-api/docs/models/gemini-nano-banana-2.1 (read 2026-10-08): GA 2026-10-06;
+  # 1K|2K|4K (no 512); up to 14 reference images. Live generateContent call 2026-10-08.
+  nano-banana-2.1:
+    id: gemini-nano-banana-2.1
+    kind: image
+    billing: metered
+    direct_price: { usd: 0.0336, unit: image, by_size: { 2K: 0.0504, 4K: 0.113 }, source: "https://ai.google.dev/gemini-api/docs/pricing (1K, paid tier)", checked: 2026-10-08 }
+    description: Nano Banana 2.1. Best overall default; 1K to 4K, strong text rendering, up to 14 reference images, half the price of nano-banana-2.
+    aliases: [gemini-nano-banana-2.1, nano-banana-2-1]
+    image_sizes: [1K, 2K, 4K]
+
   nano-banana-2:
     id: gemini-3.1-flash-image
     kind: image
     billing: metered
-    direct_price: { usd: 0.067, unit: image, source: "https://ai.google.dev/gemini-api/docs/pricing (1K, paid tier)", checked: 2026-10-04 }
-    description: Gemini 3.1 Flash Image. Best overall default; 512 to 4K, fast, strong text rendering, up to 14 reference images.
+    direct_price: { usd: 0.067, unit: image, by_size: { 512: 0.045, 2K: 0.101, 4K: 0.151 }, source: "https://ai.google.dev/gemini-api/docs/pricing (1K, paid tier)", checked: 2026-10-08 }
+    description: Gemini 3.1 Flash Image. 512 to 4K, up to 14 reference images. The only Gemini image model with a 512 size.
     aliases: [gemini-3.1-flash-image, gemini-3.1-flash, gemini-flash]
     image_sizes: [512, 1K, 2K, 4K]
+    deprecated: Google deprecated gemini-3.1-flash-image on 2026-10-06 (no shutdown date yet). Use nano-banana-2.1.
 
   nano-banana-pro:
     id: gemini-3-pro-image
     kind: image
     billing: metered
-    direct_price: { usd: 0.134, unit: image, source: "https://ai.google.dev/gemini-api/docs/pricing (1K/2K, paid tier)", checked: 2026-10-04 }
+    direct_price: { usd: 0.134, unit: image, by_size: { 4K: 0.24 }, source: "https://ai.google.dev/gemini-api/docs/pricing (1K/2K, paid tier)", checked: 2026-10-08 }
     description: Gemini 3 Pro Image. Studio-grade precision for complex layouts and typography, 1K to 4K.
     aliases: [gemini-3-pro-image, gemini-3-pro, gemini-pro]
     image_sizes: [1K, 2K, 4K]
@@ -43,6 +59,7 @@ models:
     id: gemini-3.1-flash-lite-image
     kind: image
     billing: metered
+    direct_price: { usd: 0.0336, unit: image, source: "https://ai.google.dev/gemini-api/docs/pricing (1K, paid tier)", checked: 2026-10-08 }
     description: Gemini 3.1 Flash Lite Image. Sub-2s latency, 1K only, cheapest Gemini image model.
     aliases: [gemini-3.1-flash-lite-image, gemini-3.1-flash-lite, gemini-lite, nano-banana-lite]
     image_sizes: [1K]
@@ -55,35 +72,60 @@ models:
     aliases: [gemini-2.5-flash-image, gemini-2.5-flash]
     deprecated: Shuts down 2026-10-02. Use nano-banana-2 or nano-banana-2-lite.
 
+  # https://ai.google.dev/gemini-api/docs/omni and /models/gemini-omni-flash (read 2026-10-08): GA 2026-08-27;
+  # 3-10 s at 24 fps; 16:9|9:16; 360p|720p (1080p and 4k are upscaled); audio always on, steered by the prompt;
+  # no negative prompt. Live background interaction 2026-10-08: duration "4s" gave a 4.03 s 1280x720 clip with AAC audio,
+  # billed 23,168 video tokens (5,792 per second).
+  gemini-omni:
+    id: gemini-omni-1.1-flash
+    kind: video
+    billing: metered
+    api: interactions
+    draft: { resolution: 360p }
+    # 1080p and 4k are unpublished on Google: priced at Atlas's /calculate ratios to 720p (1.45x, 2.82x) so --max-cost stays safe;
+    # 360p is unpublished too and is quoted at the 720p rate (over-quotes, never under).
+    direct_price: { usd: 0.1014, unit: second, by_size: { 1080p: 0.1475, 4k: 0.2858 }, source: "https://ai.google.dev/gemini-api/docs/pricing (720p: 5,792 video tokens per second at $17.50/M)", checked: 2026-10-08 }
+    description: Gemini Omni 1.1 Flash. 3-10 s clips, 16:9 or 9:16, 360p/720p (1080p/4k upscaled), image-to-video via -r. Sound ON (always; steer it in the prompt). No negative prompt.
+    aliases: [omni, omni-flash, gemini-omni-flash, gemini-omni-1.1-flash]
+    resolutions: [720p, 360p, 1080p, 4k]
+    duration_range: [3, 10]
+
   veo-3.1:
     id: veo-3.1-generate-preview
     kind: video
     billing: metered
     draft: { model: veo-3.1-lite }
-    direct_price: { usd: 0.40, unit: second, source: "https://ai.google.dev/gemini-api/docs/pricing (720p/1080p with audio)", checked: 2026-10-04 }
+    direct_price: { usd: 0.40, unit: second, by_size: { 4k: 0.60 }, source: "https://ai.google.dev/gemini-api/docs/pricing (720p/1080p with audio)", checked: 2026-10-08 }
     description: Veo 3.1. Cinematic 720p/1080p/4k video, 16:9 or 9:16, 4-8s, image-to-video via -r. Sound ON (native).
     aliases: [veo, veo-3.1-generate-preview]
     resolutions: [720p, 1080p, 4k]
+    deprecated: Google shuts down veo-3.1-generate-preview on 2026-10-22. -m veo-3.1 now routes to Atlas; use gemini-omni for Google direct.
 
   veo-3.1-fast:
     id: veo-3.1-fast-generate-preview
     kind: video
     billing: metered
     draft: { model: veo-3.1-lite }
-    direct_price: { usd: 0.10, unit: second, source: "https://ai.google.dev/gemini-api/docs/pricing (720p with audio; 1080p is 0.12)", checked: 2026-10-04 }
+    direct_price: { usd: 0.10, unit: second, by_size: { 1080p: 0.12, 4k: 0.30 }, source: "https://ai.google.dev/gemini-api/docs/pricing (720p with audio)", checked: 2026-10-08 }
     description: Veo 3.1 Fast. Same features as Veo 3.1 with lower latency. Sound ON (native).
     aliases: [veo-fast, veo-3.1-fast-generate-preview]
     resolutions: [720p, 1080p, 4k]
+    deprecated: Google shuts down veo-3.1-fast-generate-preview on 2026-10-22. -m veo-3.1-fast now routes to Atlas; use gemini-omni for Google direct.
 
   veo-3.1-lite:
     id: veo-3.1-lite-generate-preview
     kind: video
     billing: metered
+    direct_price: { usd: 0.05, unit: second, by_size: { 1080p: 0.08 }, source: "https://ai.google.dev/gemini-api/docs/pricing (720p with audio)", checked: 2026-10-08 }
     description: Veo 3.1 Lite. Fast 4-8s clips at 720p/1080p, text- and image-to-video only. Sound ON (native).
     aliases: [veo-lite, veo-3.1-lite-generate-preview]
     resolutions: [720p, 1080p]
+    deprecated: Google shuts down veo-3.1-lite-generate-preview on 2026-10-22 and no reseller offers it. Use gemini-omni (--draft for 360p).
 
 obsolete:
+  gemini-omni-flash-preview:
+    replacement: gemini-omni
+    reason: The Omni preview id shuts down on October 22, 2026. Use gemini-omni (gemini-omni-1.1-flash) instead.
   imagen-3:
     replacement: nano-banana-2
     reason: Imagen is shut down on the Gemini API. Use nano-banana-2 (Gemini 3.1 Flash Image) instead.

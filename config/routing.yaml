@@ -9,5 +9,9 @@ nano-banana-2: google
 nano-banana-pro: google
 gpt-image-2: openai
 flux-2-pro: replicate
-veo-3.1: google
-veo-3.1-fast: google
+# Veo: Google shuts the Gemini API preview ids down on 2026-10-22; Atlas serves
+# Veo 3.1 at the same quote (fast is 20% below). Sound is off by default there.
+veo-3.1: atlas
+veo-3.1-fast: atlas
+# Omni: Atlas is 2-3% below Google at 720p, short of the 10% flip rule. --via atlas for refs, end frames, seed.
+gemini-omni: google

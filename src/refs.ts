@@ -93,6 +93,7 @@ export function renderRefLabels(style: LabelStyle | undefined, refs: RoleRef[]):
   const describe = (r: RoleRef) => ROLE_TEXT[r.role] + (r.note ? ` (${r.note})` : '');
   if (style === 'at-index') return refs.map((r, i) => `@Image${i + 1}: ${describe(r)}.`).join('\n');
   if (style === 'wan-numbered') return refs.map((r, i) => `Image ${i + 1}: ${describe(r)}.`).join('\n');
+  if (style === 'image-ref-tag') return refs.map((r, i) => `<IMAGE_REF_${i}>: ${describe(r)}.`).join('\n');
   const ordinal = (i: number) => ORDINALS[i] ?? `#${i + 1}`;
   return 'Reference images: ' + refs.map((r, i) => `the ${ordinal(i)} image is the ${describe(r)}`).join('; ') + '.';
 }

@@ -97,6 +97,30 @@ models:
     draft: { model: veo-3.1-fast }
     inputs: { image: image, end_image: last_image, images: images, max_images: 3, duration: duration, resolution: resolution, aspect_ratio: aspect_ratio, seed: seed, negative_prompt: negative_prompt }
 
+  # https://www.atlascloud.ai/models/google/gemini-omni-1.1-flash/text-to-video , /image-to-video , /reference-to-video (read 2026-10-08):
+  # duration 3-10 (default 10); resolution 360p|720p|1080p|4k; aspect 16:9|9:16; seed; thinking_level (--param).
+  # i2v: image + last_image. r2v: reference_images 1-10, named <IMAGE_REF_N> (0-based) in the prompt.
+  # No audio field: sound is always on. /calculate 8 s: 360p 0.30, 720p 0.79, 1080p 1.15, 4k 2.23.
+  gemini-omni:
+    id: google/gemini-omni-1.1-flash/text-to-video
+    i2v_id: google/gemini-omni-1.1-flash/image-to-video
+    r2v_id: google/gemini-omni-1.1-flash/reference-to-video
+    kind: video
+    billing: metered
+    description: Gemini Omni 1.1 Flash via Atlas. Sound always ON. Start/end frames, up to 10 references, seed. 1080p/4k are upscaled.
+    label_style: image-ref-tag
+    refs:
+      start: 1
+      end: 1
+      identity: 10
+      style: 10
+      object: 10
+      location: 10
+      exclusive: [[start, identity], [start, style], [start, object], [start, location], [end, identity], [end, style], [end, object], [end, location]]
+    draft: { resolution: 360p }
+    duration_range: [3, 10]
+    inputs: { image: image, end_image: last_image, images: reference_images, max_images: 10, duration: duration, resolution: resolution, aspect_ratio: aspect_ratio, seed: seed }
+
   # https://www.atlascloud.ai/models/google/veo3.1-fast/image-to-video (read 2026-10-04): same fields as Veo 3.1 i2v
   veo-3.1-fast:
     id: google/veo3.1-fast/text-to-video
@@ -168,6 +192,6 @@ models:
 
 # Removed 2026-10-04 after verify-atlas-models.ts: ideogram/v4/quality/text-to-image
 # (price check needs an undocumented image_size_obj field) and suno/chirp-v5 (not found).
-# Not added until confirmed on a reference page: Gemini Omni Flash,
+# Not added until confirmed on a reference page:
 # Kling Omni (O3), MiniMax H3, Vidu Q3. (Seedance 2.5 added 2026-10-05.)
 # Removed 2026-10-07: elevenlabs/v3/text-to-speech (preset voices only; the direct ElevenLabs provider covers it).

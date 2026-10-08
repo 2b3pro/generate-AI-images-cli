@@ -69,6 +69,12 @@ describe('labels', () => {
         '@Image2: style reference: match its look, not its content.'
     );
   });
+  test('image-ref-tag (Gemini Omni, 0-based)', () => {
+    expect(renderRefLabels('image-ref-tag', refs).split('\n')).toEqual([
+      '<IMAGE_REF_0>: identity reference: keep this person or character recognisably the same (the man in the centre).',
+      '<IMAGE_REF_1>: style reference: match its look, not its content.',
+    ]);
+  });
   test('wan-numbered', () => {
     expect(renderRefLabels('wan-numbered', refs).split('\n')[1]).toBe('Image 2: style reference: match its look, not its content.');
   });

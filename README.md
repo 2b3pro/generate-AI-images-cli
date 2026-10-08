@@ -2,7 +2,7 @@
 
 ![Cover](./assets/cover.png)
 
-AI Image & Video Generation CLI — generate images and videos using Gemini (Nano Banana & Veo), OpenAI (GPT Image 2.5), Flux, and more directly from your terminal. Models are defined per provider in editable YAML config files.
+AI Image & Video Generation CLI: generate images and videos using Gemini (Nano Banana & Omni), Veo, OpenAI (GPT Image 2.5), Flux, and more directly from your terminal. Models are defined per provider in editable YAML config files.
 
 ## Installation
 
@@ -27,11 +27,11 @@ Then run `bun link` again.
 ## Usage
 
 ```bash
-# Generate image with default model (nano-banana-2: Gemini 3.1 Flash Image)
+# Generate image with default model (nano-banana-2.1: Nano Banana 2.1)
 generate "A serene mountain landscape at sunset"
 
-# Generate video with Veo 3.1
-generate -m veo-3.1 "A drone flying through a vibrant neon cyberpunk metropolis at night"
+# Generate video with sound (Gemini Omni 1.1 Flash)
+generate -m omni "A drone flying through a vibrant neon cyberpunk metropolis at night"
 
 # With prompt flag
 generate -p "A serene mountain landscape at sunset"
@@ -48,11 +48,11 @@ cat prompt.txt | generate "make it cyberpunk"
 | Flag | Description |
 |------|-------------|
 | `-p, --prompt <text>` | Generation prompt (alternative to positional argument) |
-| `-m, --model <model>` | Model to use (default: `nano-banana-2`) |
+| `-m, --model <model>` | Model to use (default: `nano-banana-2.1`) |
 | `-a, --aspect-ratio <ratio>` | Aspect ratio: `1:1`, `16:9`, `9:16`, `4:3`, etc. (default: `16:9`) |
 | `-s, --size <size>` | Image size: `512`, `1K`, `2K`, `4K`, or specific dimensions (WxH for OpenAI) |
-| `--resolution <res>` | Video/image resolution: `720p`, `1080p`, `4k` for video (1080p/4k force 8s); `512`, `1K`, `2K`, `4K` for image |
-| `--duration <seconds>` | Video duration: `4`, `6`, or `8` seconds (Veo models) |
+| `--resolution <res>` | Video/image resolution: `360p` (Omni), `720p`, `1080p`, `4k` for video (Veo: 1080p/4k force 8s); `512`, `1K`, `2K`, `4K` for image |
+| `--duration <seconds>` | Video duration: `3`-`10` seconds (Omni; default 8), `4`, `6`, or `8` (Veo) |
 | `--fps <number>` | Video frame rate (e.g. 24, 30) |
 | `-o, --output <path>` | Output file path (`.png` for images, `.mp4` for videos) |
 | `-r, --reference <path>` | Reference image(s) for style or image-to-video (repeatable) |
@@ -77,13 +77,15 @@ Use `generate --list-models` to view all available models from your terminal.
 
 | Model | Type | Best For / When to Use | Key Strengths & Characteristics |
 |-------|------|------------------------|---------------------------------|
-| **`nano-banana-2`** *(default)* | Image | **Best overall default** for general generation, illustrations, artistic scenes, and realistic photos | Gemini 3.1 Flash Image. 512 to 4K output, fast response, exceptional text rendering, up to 14 reference images. |
+| **`nano-banana-2.1`** *(default)* | Image | **Best overall default** for general generation, illustrations, artistic scenes, and realistic photos | Nano Banana 2.1 (`gemini-nano-banana-2.1`). 1K to 4K output, exceptional text rendering, up to 14 reference images, about $0.034 per 1K image. |
+| **`nano-banana-2`** | Image | *Deprecated by Google 2026-10-06 (no shutdown date yet)*; the only Gemini model with a `512` size | Gemini 3.1 Flash Image. 512 to 4K output. Use `nano-banana-2.1`. |
 | **`nano-banana-pro`** | Image | **Complex graphics, precise typography, product mockups, and intricate compositions** | Gemini 3 Pro Image. Studio-grade precision, deep multimodal reasoning, accurate layouts for technical/visual assets up to 4K. |
 | **`nano-banana-2-lite`** | Image | **Ultra-fast ideation, UI prototyping, and high-volume batch generation** | Gemini 3.1 Flash Lite Image. Sub-2s latency, optimized for 1K resolution, highly responsive and cost-efficient. |
 | **`nano-banana`** | Image | *Deprecated (shutdown 2026-10-02)* | Gemini 2.5 Flash Image. Fixed ~1024px output. Use `nano-banana-2` or `nano-banana-2-lite`. |
-| **`veo-3.1`** | Video | **Cinematic video generation, storytelling, and high-fidelity video production** | Google's premier cinematic video model. 720p/1080p/4k, 16:9 landscape & 9:16 portrait, 4-8s, image-to-video (`-r`). |
-| **`veo-3.1-fast`** | Video | **Same features as Veo 3.1 with lower latency** | 720p/1080p/4k, 16:9 or 9:16, image-to-video (`-r`). |
-| **`veo-3.1-lite`** | Video | **Rapid video prototyping, social media clips, and quick animations** | 720p/1080p, 4-8s clips, text- and image-to-video only. |
+| **`gemini-omni`** | Video | **Video with native sound on Google direct** | Gemini Omni 1.1 Flash (`gemini-omni-1.1-flash`). 3-10s, 16:9 or 9:16, 360p/720p (1080p/4k upscaled), image-to-video (`-r` is the first frame). Sound is always on; steer it in the prompt. No negative prompt. `--draft` renders at 360p. `--via atlas` adds start/end frames (`--ref start=`/`end=`), up to 10 references, and `--seed`. Aliases: `omni`, `omni-flash`. |
+| **`veo-3.1`** | Video | **Cinematic video generation, storytelling, and high-fidelity video production** | Routes to Atlas (sound off unless `--param generate_audio=true`). 720p/1080p/4k, 16:9 or 9:16, 4-8s, start/end frames and identity refs. `--via google` works until Google shuts the preview id down on 2026-10-22. |
+| **`veo-3.1-fast`** | Video | **Same features as Veo 3.1 with lower latency** | Routes to Atlas, as above. |
+| **`veo-3.1-lite`** | Video | *Google direct only; shuts down 2026-10-22* | 720p/1080p, 4-8s. Use `gemini-omni` (`--draft` for cheap previews). |
 | **`gpt-image-2.5-sunburst`** | Image | **Highest-quality OpenAI generation and precise editing / inpainting** | GPT Image 2.5 Sunburst. Any WxH divisible by 16 (longest edge ≤ 3840px, 0.65–8.3 MP), `xhigh`/`max` quality tiers, transparent backgrounds, reference-image editing (`-r`). Aliases: `sunburst`, `gpt-image-2.5`. |
 | **`gpt-image-2.5-flare`** | Image | **Fast, high-quality everyday OpenAI generation** | GPT Image 2.5 Flare. Same sizes, quality tiers, and editing as Sunburst at lower latency. Alias: `flare`. |
 | **`gpt-image-2`** | Image | **Previous OpenAI flagship; Batch API workloads** | Any WxH divisible by 16 (longest edge ≤ 3840px), `low`–`high` quality, image-to-image editing. |
@@ -99,7 +101,7 @@ Use `generate --list-models` to view all available models from your terminal.
 | **`flux-schnell`** | Image | **Rapid drafting at minimal cost** | FLUX.1 Schnell, 4-step, about $0.003 per image. |
 | **`flux-pro`** | Image | *Deprecated on Replicate* | Original FLUX.1 Pro. Use `flux` or `flux-2-pro`. |
 
-> **Note on Retired Models:** the Imagen line, Veo 2.0, Veo 3.0, and the `-preview` Nano Banana ids (Google) and `dall-e-2`, `dall-e-3` (OpenAI) are retired. `generate` refuses them with a migration hint pointing at the current replacement.
+> **Note on Retired Models:** the Imagen line, Veo 2.0, Veo 3.0, the `-preview` Nano Banana ids and `gemini-omni-flash-preview` (Google) and `dall-e-2`, `dall-e-3` (OpenAI) are retired. `generate` refuses them with a migration hint pointing at the current replacement.
 
 ### Model Configuration
 
@@ -107,7 +109,7 @@ Models are not hardcoded. Each provider has a YAML file under [`config/models/`]
 
 ```
 config/models/
-├── google.yaml      # Nano Banana image + Veo video models
+├── google.yaml      # Nano Banana image + Gemini Omni and Veo video models
 ├── openai.yaml      # GPT Image models
 └── replicate.yaml   # Flux models
 ```
@@ -133,7 +135,7 @@ Each file documents its provider-specific fields in a header comment. Set `GENER
 ### Examples
 
 ```bash
-# Generate image with default model (nano-banana-2)
+# Generate image with default model (nano-banana-2.1)
 generate "A serene mountain landscape at sunset"
 
 # Highest quality graphic design with Gemini 3 Pro
@@ -142,14 +144,17 @@ generate -m nano-banana-pro "Intricate architectural cutaway of a futuristic spa
 # Ultra-fast sub-2s image generation
 generate -m nano-banana-2-lite "Minimalist vector logo of a golden owl"
 
-# Cinematic video generation with Veo 3.1
-generate -m veo-3.1 "A drone flying smoothly through a vibrant neon cyberpunk metropolis at night"
+# Video with native sound (Gemini Omni 1.1 Flash), 6 seconds
+generate -m omni "A drone flying smoothly through a vibrant neon cyberpunk metropolis at night" --duration 6
 
-# Mobile portrait video (9:16) with Veo 3.1 Lite
-generate -m veo-3.1-lite "Raindrops rippling on a puddle in slow motion" -a 9:16
+# Mobile portrait video (9:16)
+generate -m omni "Raindrops rippling on a puddle in slow motion" -a 9:16
 
-# Image-to-video animation with Veo 3.1
-generate -m veo-3.1 "Bring this painting to life with gentle ambient wind and lighting" -r ./painting.png
+# Image-to-video animation (the -r image is the first frame)
+generate -m omni "Bring this painting to life with gentle ambient wind and lighting" -r ./painting.png
+
+# Cinematic Veo 3.1 through Atlas, with sound
+generate -m veo-3.1 "A slow dolly through a rain-soaked alley" --param generate_audio=true
 
 # Highest-quality OpenAI generation (GPT Image 2.5 Sunburst)
 generate -m gpt-image-2.5-sunburst "Abstract digital art" -q xhigh
@@ -197,9 +202,12 @@ which one serves it; `--via <provider>` picks another for one call.
 reaches a plan path; if no matching path exists the command fails and names
 the alternatives. Video is always metered.
 
-Atlas notes: Veo through Atlas has audio off unless `--param generate_audio=true`
-(direct Veo has audio on), so compare like with like. The free `/calculate`
-endpoint sits behind an edge rate limit; space out bulk price checks.
+Atlas notes: Veo through Atlas is documented as audio off unless `--param generate_audio=true`,
+but Veo 3.1 Standard is quoted with sound when the field is left out ($3.20 vs $1.60 for 8 s).
+For a silent clip pass `--param generate_audio=false` explicitly. Gemini Omni has no audio
+switch on either provider. Through Atlas, Omni defaults to 10 s when `--duration` is not given
+(Google direct defaults to 8 s). The free `/calculate` endpoint sits behind an edge rate limit;
+space out bulk price checks.
 
 ## Long jobs
 
@@ -225,7 +233,7 @@ durations they force) are checked before anything is sent.
 
 | Credential | Environment Variable | Keychain Service Name | Required for |
 |------------|----------------------|-----------------------|--------------|
-| Gemini / Google | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `NANOBANANA_API_KEY` | Gemini Nano Banana and Veo video models |
+| Gemini / Google | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `NANOBANANA_API_KEY` | Gemini Nano Banana image and Gemini Omni / Veo video models |
 | OpenAI | `OPENAI_API_KEY` | `OPENAI_API_KEY`, `OPENAI_PROJECT_API_KEY` | GPT-Image models |
 | Replicate | `REPLICATE_API_TOKEN` | `REPLICATE_API_TOKEN`, `REPLICATE_API_KEY` | Flux models |
 | Atlas Cloud | `ATLASCLOUD_API_KEY` | `ATLASCLOUD_API_KEY` | Atlas models (`--via atlas`) |

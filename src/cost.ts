@@ -31,13 +31,15 @@ export async function priceFor(spec: ModelSpec, provider: ImageProvider, options
   const p = spec.direct_price;
   if (!p) return undefined;
   let usd = p.usd;
-  if (p.unit === 'second') usd = p.usd * (options.duration ?? 8);
+  const size = options.resolution ?? options.size;
+  if (size && p.by_size) usd = p.by_size[size] ?? p.by_size[size.toUpperCase()] ?? p.by_size[size.toLowerCase()] ?? usd;
+  if (p.unit === 'second') usd *= options.duration ?? 8;
   if (p.unit === 'minute') {
     const clipSeconds = spec.endpoint === 'video-to-music' ? clipLength(options.referenceImages ?? []) : undefined;
     const seconds = clipSeconds ?? options.duration ?? (spec.endpoint ? ENDPOINT_MAX_SECONDS[spec.endpoint] : undefined) ?? 60;
-    usd = (p.usd * seconds) / 60;
+    usd = (usd * seconds) / 60;
   }
-  if (p.unit === '1k_chars') usd = (p.usd * options.prompt.length) / 1000;
+  if (p.unit === '1k_chars') usd = (usd * options.prompt.length) / 1000;
   if (!Number.isFinite(usd)) return undefined;
   return { usd, source: 'list-price', unit: p.unit };
 }

@@ -112,7 +112,7 @@ export async function run(req: RunRequest, deps: RunDeps): Promise<ResultJson> {
   if (options.duration !== undefined) {
     if (!Number.isFinite(options.duration) || options.duration <= 0) return fail(json, 2, `--duration must be a number of seconds above 0; got ${options.duration}`);
     if (spec.endpoint === 'video-to-music') return fail(json, 2, `${spec.name} does not take --duration: the clip sets the length`);
-    const range = spec.endpoint ? ENDPOINT_DURATION_RANGE[spec.endpoint] : undefined;
+    const range = spec.duration_range ?? (spec.endpoint ? ENDPOINT_DURATION_RANGE[spec.endpoint] : undefined);
     if (range && (options.duration < range[0] || options.duration > range[1])) {
       return fail(json, 2, `${spec.name} takes --duration ${range[0]}-${range[1]} s; got ${options.duration}`);
     }

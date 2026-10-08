@@ -34,3 +34,14 @@ test('a non-finite estimate is no price at all (so a cap refuses)', async () => 
   const p = await priceFor(spec({ endpoint: 'music', direct_price: { usd: 0.15, unit: 'minute' } }), provider, { model: 'm', prompt: 'p', duration: Number.NaN });
   expect(p).toBeUndefined();
 });
+
+test('per-size list prices: image sizes and video resolutions, base price for anything unlisted', async () => {
+  const img = spec({ kind: 'image', direct_price: { usd: 0.0336, unit: 'image', by_size: { '2K': 0.0504, '4K': 0.113 } } });
+  expect((await priceFor(img, provider, { model: 'm', prompt: 'p', size: '4K' }))?.usd).toBe(0.113);
+  expect((await priceFor(img, provider, { model: 'm', prompt: 'p', size: '4k' }))?.usd).toBe(0.113);
+  expect((await priceFor(img, provider, { model: 'm', prompt: 'p', size: '512' }))?.usd).toBe(0.0336);
+  expect((await priceFor(img, provider, { model: 'm', prompt: 'p' }))?.usd).toBe(0.0336);
+  const vid = spec({ kind: 'video', direct_price: { usd: 0.1014, unit: 'second', by_size: { '1080p': 0.1475, '4k': 0.2858 } } });
+  expect((await priceFor(vid, provider, { model: 'm', prompt: 'p', resolution: '4K', duration: 8 }))?.usd).toBeCloseTo(2.2864);
+  expect((await priceFor(vid, provider, { model: 'm', prompt: 'p', resolution: '360p', duration: 5 }))?.usd).toBeCloseTo(0.507);
+});

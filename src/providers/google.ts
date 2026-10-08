@@ -52,17 +52,68 @@ export function veoPollState(op: { done?: boolean; error?: Record<string, unknow
   return { status: 'completed', urls: [] };
 }
 
+/** The parts of an Interactions API response the Omni path reads. */
+export interface Interaction {
+  id?: string;
+  status?: string;
+  error?: unknown;
+  steps?: Array<{ type?: string; content?: Array<{ type?: string; data?: string; uri?: string; mime_type?: string }> }>;
+}
+
+/** Gemini Interactions API over REST: @google/genai 1.x speaks a schema the server now rejects. */
+export interface InteractionsApi {
+  create(body: Record<string, unknown>): Promise<Interaction>;
+  get(id: string): Promise<Interaction>;
+  download(uri: string): Promise<ArrayBuffer>;
+}
+
+const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta';
+
+export function restInteractions(apiKey: string): InteractionsApi {
+  const call = async (url: string, init?: RequestInit): Promise<Response> => {
+    const res = await fetch(url, { ...init, headers: { 'x-goog-api-key': apiKey, 'content-type': 'application/json' } });
+    if (!res.ok) {
+      const text = await res.text();
+      throw Object.assign(new Error(`HTTP ${res.status}: ${text.slice(0, 500)}`), { status: res.status });
+    }
+    return res;
+  };
+  return {
+    create: async (body) => (await call(`${GEMINI_API}/interactions`, { method: 'POST', body: JSON.stringify(body) })).json() as Promise<Interaction>,
+    get: async (id) => (await call(`${GEMINI_API}/interactions/${encodeURIComponent(id)}`)).json() as Promise<Interaction>,
+    download: async (uri) => (await call(uri)).arrayBuffer(),
+  };
+}
+
+export function omniPollState(i: Interaction): PollState {
+  if (i.status === 'in_progress') return { status: 'processing' };
+  if (i.status === 'completed') return { status: 'completed', urls: [] };
+  return { status: 'failed', message: `interaction ${i.status ?? 'returned no status'}${i.error ? `: ${JSON.stringify(i.error)}` : ''}` };
+}
+
+/** The generated clip: a "video" part in the model's output step. */
+export function omniVideo(i: Interaction): { data?: string; uri?: string } | undefined {
+  return (i.steps ?? []).flatMap((s) => (s.type === 'user_input' ? [] : s.content ?? [])).find((c) => c.type === 'video');
+}
+
+/** Veo jobs are long-running operations ("models/<id>/operations/<op>"); Omni jobs are interaction ids. */
+function isVeoOperation(id: string): boolean {
+  return id.includes('/operations/');
+}
+
 export class GoogleProvider extends BaseProvider {
   name = 'Google';
   // Model list, Gemini API ids, and capability flags live in config/models/google.yaml
   models: Model[] = modelsForProvider('google');
 
   private client: GoogleGenAI | null = null;
+  private interactions: InteractionsApi | null = null;
 
-  constructor(client?: GoogleGenAI) {
+  constructor(client?: GoogleGenAI, interactions?: InteractionsApi) {
     super();
-    if (client) {
-      this.client = client;
+    if (client || interactions) {
+      this.client = client ?? null;
+      this.interactions = interactions ?? null;
       return;
     }
     const apiKey = resolveApiKey();
@@ -87,11 +138,122 @@ export class GoogleProvider extends BaseProvider {
       delete process.env.GEMINI_API_KEY;
 
       this.client = new GoogleGenAI({ apiKey, vertexai: false });
+      this.interactions = restInteractions(apiKey);
     }
   }
 
   private isVideo(model: Model): boolean {
     return getModelSpec(model, 'google').kind === 'video';
+  }
+
+  private async generateOmniVideo(options: GenerateOptions): Promise<GenerationResult> {
+    if (!this.interactions) {
+      return { success: false, error: 'GOOGLE_API_KEY or GEMINI_API_KEY environment variable (or macOS Keychain entry) is required for Gemini Omni video generation.' };
+    }
+    try {
+      const spec = getModelSpec(options.model, 'google');
+      let outputPath = options.output || DEFAULT_OPTIONS.videoOutput;
+      if (/\.(png|jpg|jpeg|webp)$/i.test(outputPath)) outputPath = outputPath.replace(/\.(png|jpg|jpeg|webp)$/i, '.mp4');
+
+      const aspectRatio = options.aspectRatio === '9:16' ? '9:16' : '16:9';
+      const allowedRes = (spec.resolutions ?? ['720p']).map((r) => r.toLowerCase());
+      let resolution = (options.resolution || options.size || allowedRes[0]).toLowerCase();
+      if (!allowedRes.includes(resolution)) resolution = allowedRes[0];
+      // Always explicit, so the clip matches the quote (priced at 8 s when --duration is absent).
+      const duration = Math.round(options.duration ?? 8);
+      const responseFormat = { type: 'video', aspect_ratio: aspectRatio, resolution, duration: `${duration}s` };
+
+      // Omni has no negative prompt; say it in the prompt, as the image path does.
+      const prompt = options.negativePrompt ? `${options.prompt} Avoid: ${options.negativePrompt}` : options.prompt;
+      // One -r image is the start frame; the model infers image-to-video from it.
+      const start = options.referenceImages?.[0];
+      const input = start
+        ? [{ type: 'text', text: prompt }, { type: 'image', data: await readImageAsBase64(start), mime_type: getMimeType(start) }]
+        : prompt;
+
+      options.onProgress?.(`Starting video generation with ${options.model}...`);
+      const created = await this.interactions.create({ model: spec.id, input, background: true, response_format: responseFormat });
+      if (!created.id) {
+        return { success: false, error: 'Gemini Omni returned no interaction id, so the job cannot be tracked. Check the Google AI Studio dashboard before retrying.' };
+      }
+      const record: JobRecord = {
+        id: created.id,
+        provider: 'google',
+        model: options.model,
+        kind: 'video',
+        output: outputPath,
+        submittedAt: new Date().toISOString(),
+        status: 'pending',
+        provider_model_id: spec.id,
+        request: {
+          prompt_sent: prompt,
+          params: responseFormat,
+          refs: start ? [{ role: 'start' as const, path: start }] : [],
+          draft: Boolean(options.draft),
+        },
+      };
+      try {
+        writeJob(record);
+      } catch (err) {
+        return { success: false, jobId: record.id, error: `Submitted as Omni interaction ${record.id}, but the job record could not be written (${(err as Error).message}). Do not resubmit.` };
+      }
+      if (options.noWait) return { success: false, pending: true, jobId: record.id, providerModelId: spec.id, request: record.request };
+      return await this.waitOmniSafely(record, options);
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
+    }
+  }
+
+  /** Never throws: any error after submit returns the job id with a resume hint, so nobody pays twice. */
+  private async waitOmniSafely(record: JobRecord, opts: { waitSeconds?: number; onProgress?: (status: string) => void }): Promise<GenerationResult> {
+    try {
+      return await this.waitOmni(record, opts);
+    } catch (err) {
+      return {
+        success: false,
+        pending: true,
+        jobId: record.id,
+        providerModelId: record.provider_model_id,
+        request: record.request,
+        error: `Omni interaction ${record.id} was submitted but could not be completed here (${(err as Error).message}). Do not resubmit; resume with: generate --resume ${record.id}`,
+      };
+    }
+  }
+
+  private async waitOmni(record: JobRecord, opts: { waitSeconds?: number; onProgress?: (status: string) => void }): Promise<GenerationResult> {
+    let current: Interaction = {};
+    const state = await waitForJob(
+      async () => {
+        try {
+          current = await this.interactions!.get(record.id);
+        } catch (err) {
+          const status = (err as { status?: number }).status;
+          if (status === 429 || (status !== undefined && status >= 500)) throw new RetryableError(`HTTP ${status}`);
+          throw err;
+        }
+        return omniPollState(current);
+      },
+      { waitSeconds: opts.waitSeconds ?? DEFAULT_WAIT_SECONDS.video, intervalMs: POLL_INTERVAL_MS.video, onProgress: opts.onProgress }
+    );
+
+    if (state.status === 'timeout') {
+      return { success: false, pending: true, jobId: record.id, providerModelId: record.provider_model_id, request: record.request, error: `Still running. Resume with: generate --resume ${record.id}` };
+    }
+    if (state.status === 'failed') {
+      updateJob(record.id, { status: 'failed', error: { message: state.message } });
+      return { success: false, jobId: record.id, error: `Video generation failed: ${state.message}` };
+    }
+    const video = omniVideo(current);
+    if (!video?.data && !video?.uri) {
+      updateJob(record.id, { status: 'failed', error: { message: 'no video in the completed interaction' } });
+      return { success: false, jobId: record.id, error: 'No video was returned by the model. Check safety filters or guidelines.' };
+    }
+    opts.onProgress?.(`Downloading generated video to ${path.basename(record.output)}...`);
+    fs.mkdirSync(path.dirname(record.output), { recursive: true });
+    const bytes = video.data ? Buffer.from(video.data, 'base64') : Buffer.from(await this.interactions!.download(video.uri!));
+    await Bun.write(record.output, bytes);
+    updateJob(record.id, { status: 'completed', outputs: [record.output] });
+    return { success: true, outputPath: record.output, outputs: [record.output], jobId: record.id, providerModelId: record.provider_model_id, request: record.request };
   }
 
   private async generateVideo(options: GenerateOptions): Promise<GenerationResult> {
@@ -297,6 +459,10 @@ export class GoogleProvider extends BaseProvider {
   }
 
   async resume(record: JobRecord, opts: { waitSeconds?: number; onProgress?: (status: string) => void }): Promise<GenerationResult> {
+    if (!isVeoOperation(record.id)) {
+      if (!this.interactions) return { success: false, error: 'GOOGLE_API_KEY or GEMINI_API_KEY (or a macOS Keychain entry) is required to resume an Omni job.' };
+      return this.waitOmniSafely(record, opts);
+    }
     if (!this.client) {
       return { success: false, error: 'GOOGLE_API_KEY or GEMINI_API_KEY (or a macOS Keychain entry) is required to resume a Veo job.' };
     }
@@ -306,8 +472,9 @@ export class GoogleProvider extends BaseProvider {
   }
 
   async generate(options: GenerateOptions): Promise<GenerationResult> {
-    // Video models route directly to Veo video generation
+    // Video models: Omni through the Interactions API, Veo through generateVideos
     if (this.isVideo(options.model)) {
+      if (getModelSpec(options.model, 'google').api === 'interactions') return this.generateOmniVideo(options);
       return this.generateVideo(options);
     }
 

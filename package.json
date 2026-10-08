@@ -1,7 +1,7 @@
 {
   "name": "img-gen-cli",
-  "version": "1.5.0",
-  "description": "AI Image & Video Generation CLI - Generate images and videos using Gemini (Nano Banana & Veo), OpenAI, Flux, and more",
+  "version": "1.6.0",
+  "description": "AI Image & Video Generation CLI - Generate images and videos using Gemini (Nano Banana & Omni), Veo, OpenAI, Flux, and more",
   "type": "module",
   "bin": {
     "generate": "./dist/cli.js"

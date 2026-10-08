@@ -198,12 +198,39 @@ describe('review fixes', () => {
 });
 
 describe('real config drafts', () => {
-  test('the documented `-m veo-3.1 --draft` works and stays on google', async () => {
+  test('the documented `-m veo-3.1 --draft` works and stays on atlas, where veo-3.1 now routes', async () => {
+    useRealRegistry();
+    const atlas = new FakeProvider();
+    const json = await run(req({ modelInput: 'veo-3.1', draft: true }, { output: '/tmp/w.mp4' }), deps({ atlas }));
+    expect(json.exit_code).toBe(0);
+    expect(json.provider).toBe('atlas');
+    expect(atlas.calls.generate[0].model).toBe('veo-3.1-fast');
+  });
+
+  test('`--via google` still reaches the Veo preview ids until their shutdown', async () => {
     useRealRegistry();
     const google = new FakeProvider();
-    const json = await run(req({ modelInput: 'veo-3.1', draft: true }, { output: '/tmp/w.mp4' }), deps({ google }));
+    const json = await run(req({ modelInput: 'veo-3.1', via: 'google', draft: true }, { output: '/tmp/w.mp4' }), deps({ google }));
     expect(json.exit_code).toBe(0);
     expect(google.calls.generate[0].model).toBe('veo-3.1-lite');
+  });
+
+  test('`-m omni --draft` stays on google at 360p', async () => {
+    useRealRegistry();
+    const google = new FakeProvider();
+    const json = await run(req({ modelInput: 'omni', draft: true }, { output: '/tmp/w.mp4' }), deps({ google }));
+    expect(json.exit_code).toBe(0);
+    expect(json.provider_model_id).toBe('gemini-omni-1.1-flash');
+    expect(google.calls.generate[0]).toMatchObject({ model: 'gemini-omni', resolution: '360p', draft: true });
+  });
+
+  test('gemini-omni refuses a --duration outside 3-10 s before anything is sent', async () => {
+    useRealRegistry();
+    const google = new FakeProvider();
+    const json = await run(req({ modelInput: 'gemini-omni' }, { output: '/tmp/w.mp4', duration: 12 }), deps({ google }));
+    expect(json.exit_code).toBe(2);
+    expect(json.error).toMatch(/takes --duration 3-10 s/);
+    expect(google.calls.generate).toHaveLength(0);
   });
 });
 

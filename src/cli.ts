@@ -39,7 +39,7 @@ program
     console.log(pkg.version);
     process.exit(0);
   })
-  .description(`AI Image & Video Generation CLI (v${pkg.version}) - Generate images and videos using Gemini (Nano Banana & Veo), OpenAI, Flux, and more`)
+  .description(`AI Image & Video Generation CLI (v${pkg.version}) - Generate images and videos using Gemini (Nano Banana & Omni), Veo, OpenAI, Flux, and more`)
   .addHelpText('beforeAll', chalk.bold.cyan(`\n  generate v${pkg.version}\n`));
 
 // Handle --list-models before requiring other options
@@ -356,7 +356,7 @@ function emitResult(json: ResultJson, jsonMode: boolean, spinner: Ora): never {
 program.addHelpText('after', `
 
 ${chalk.bold('Examples:')}
-  ${chalk.dim('# Generate image with default (nano-banana-2: Gemini 3.1 Flash Image)')}
+  ${chalk.dim('# Generate image with default (nano-banana-2.1: Nano Banana 2.1)')}
   $ generate "A serene mountain landscape at sunset"
 
   ${chalk.dim('# Generate highest-quality image with Gemini 3 Pro')}
@@ -365,14 +365,17 @@ ${chalk.bold('Examples:')}
   ${chalk.dim('# Ultra-fast sub-2s image generation (Gemini 3.1 Flash Lite Image)')}
   $ generate -m nano-banana-2-lite "Minimalist logo of a golden owl"
 
-  ${chalk.dim('# Cinematic 4K/1080p video generation with Veo 3.1')}
-  $ generate -m veo-3.1 "A drone flying smoothly through a vibrant neon cyberpunk metropolis at night"
+  ${chalk.dim('# Video with sound on Google direct (Gemini Omni 1.1 Flash, 3-10 s)')}
+  $ generate -m omni "A drone flying smoothly through a vibrant neon cyberpunk metropolis at night" --duration 6
 
-  ${chalk.dim('# Rapid video generation with Veo 3.1 Lite (portrait 9:16 for mobile)')}
-  $ generate -m veo-3.1-lite "Raindrops rippling on a puddle in slow motion" -a 9:16
+  ${chalk.dim('# Portrait 9:16 for mobile')}
+  $ generate -m omni "Raindrops rippling on a puddle in slow motion" -a 9:16
 
-  ${chalk.dim('# Image-to-video with Veo 3.1')}
-  $ generate -m veo-3.1 "Bring this painting to life with gentle ambient motion" -r ./painting.png
+  ${chalk.dim('# Image-to-video (the -r image is the first frame)')}
+  $ generate -m omni "Bring this painting to life with gentle ambient motion" -r ./painting.png
+
+  ${chalk.dim('# Cinematic Veo 3.1 (served by Atlas; sound off unless asked)')}
+  $ generate -m veo-3.1 "A slow dolly through a rain-soaked alley" --param generate_audio=true
 
   ${chalk.dim('# Highest-quality OpenAI generation (GPT Image 2.5 Sunburst)')}
   $ generate -m gpt-image-2.5-sunburst "Abstract digital art" -q high
@@ -397,8 +400,8 @@ ${chalk.bold('Examples:')}
   $ generate -m gpt-image-2 "a lighthouse at dusk" --billing plan
 
   ${chalk.dim('# Cheap draft first, then the final on the same settings')}
-  $ generate -m veo-3.1 "waves at night" --draft
-  $ generate -m veo-3.1 "waves at night"
+  $ generate -m omni "waves at night" --draft
+  $ generate -m omni "waves at night"
 
   ${chalk.dim('# Sound effects for a silent clip, then a score fitted to it')}
   $ generate -m eleven-sfx "waves crashing on rocks, distant gulls" --duration 5 -o waves.mp3
@@ -433,7 +436,7 @@ ${chalk.bold('Model Configuration:')}
   config/models/<provider>.yaml. Edit those files to add or update models;
   set GENERATE_MODELS_DIR to point at a different directory.
 
-${chalk.dim('Note on retired models: Imagen 3, Imagen 3 Fast, Imagen 4, and Veo 2.0 were retired by Google and replaced by Gemini 3.x Nano Banana and Veo 3.1.')}
+${chalk.dim('Note on retired models: Imagen 3, Imagen 3 Fast, Imagen 4, Veo 2.0 and Veo 3.0 were retired by Google. The Veo 3.1 preview ids on the Gemini API shut down 2026-10-22; Gemini Omni replaces them there, and veo-3.1 now routes to Atlas.')}
 `);
 
 program.parse();

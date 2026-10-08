@@ -16,7 +16,7 @@ export type RefRole = 'start' | 'end' | 'identity' | 'style' | 'object' | 'locat
 export const REF_ROLES: RefRole[] = ['start', 'end', 'identity', 'style', 'object', 'location'];
 
 /** How references are named inside the prompt sent to the model */
-export type LabelStyle = 'prose' | 'at-index' | 'wan-numbered';
+export type LabelStyle = 'prose' | 'at-index' | 'wan-numbered' | 'image-ref-tag';
 
 /** ElevenLabs endpoint a model spec maps to */
 export type ElevenEndpoint = 'tts' | 'dialogue' | 'sound' | 'music' | 'video-to-music';
@@ -47,6 +47,8 @@ export interface DirectPrice {
   unit: string;
   source?: string;
   checked?: string;
+  /** Price per unit by output size: image size (512, 1K, 2K, 4K) or video resolution (360p, 720p, 1080p, 4k). `usd` covers the default and any size not listed. */
+  by_size?: Record<string, number>;
 }
 
 export interface DraftTier {
@@ -146,6 +148,10 @@ export interface ModelSpec {
   image_sizes?: (string | number)[];
   /** Google video: resolutions the model accepts (e.g. 720p, 1080p, 4k); first entry is the default */
   resolutions?: string[];
+  /** Google video: "interactions" = served by the Interactions API (Gemini Omni); omitted = generateVideos (Veo) */
+  api?: 'interactions';
+  /** Accepted --duration range in seconds; out-of-range requests are refused before any spend */
+  duration_range?: [number, number];
   /** Replicate: aspect_ratio enum the model accepts; others are rejected before the API call */
   aspect_ratios?: string[];
   /** Replicate: how CLI options map onto this model's input schema */
@@ -278,7 +284,7 @@ export const ASPECT_RATIO_TO_DIMENSIONS: Record<AspectRatio, { width: number; he
 };
 
 export const DEFAULT_OPTIONS = {
-  model: 'nano-banana-2' as Model,
+  model: 'nano-banana-2.1' as Model,
   aspectRatio: '16:9' as AspectRatio,
   output: '/tmp/generated-image.png',
   videoOutput: '/tmp/generated-video.mp4',

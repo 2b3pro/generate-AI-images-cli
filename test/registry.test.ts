@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { getModelSpec, listOffers, loadModelRegistry, NoBillingPathError, selectSpec } from '../src/config/models';
+import { getModelSpec, listOffers, loadModelRegistry, NoBillingPathError, resolveModel, selectSpec } from '../src/config/models';
+import { DEFAULT_OPTIONS } from '../src/types';
 import { FIXTURE_FILES, FIXTURE_ROUTING } from './fixtures/registry';
 import { useRealRegistry, writeRegistry } from './helpers/registry';
 
@@ -69,5 +70,17 @@ describe('real config', () => {
     expect(reg.models['nano-banana-2'].provider).toBe('google');
     expect(reg.models['nano-banana-2'].billing).toBe('metered');
     expect(reg.models['gpt-image-2'].provider).toBe('openai');
+  });
+
+  test('the October 2026 Google changes: 2.1 is the default, Omni resolves, Veo routes to Atlas', () => {
+    useRealRegistry();
+    const reg = loadModelRegistry();
+    expect(reg.models[DEFAULT_OPTIONS.model].id).toBe('gemini-nano-banana-2.1');
+    expect(resolveModel('omni')).toBe('gemini-omni');
+    expect(resolveModel('gemini-omni-1.1-flash')).toBe('gemini-omni');
+    expect(() => resolveModel('gemini-omni-flash-preview')).toThrow(/obsolete/);
+    expect(reg.models['veo-3.1'].provider).toBe('atlas');
+    expect(reg.models['veo-3.1-fast'].provider).toBe('atlas');
+    expect(reg.offers['nano-banana-2'].google?.deprecated).toMatch(/nano-banana-2\.1/);
   });
 });
