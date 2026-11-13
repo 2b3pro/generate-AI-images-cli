@@ -24,6 +24,34 @@
 provider: openai
 
 models:
+  # https://developers.openai.com/api/docs/changelog (Nov 4) and guides/image-generation (read 2026-11-12):
+  # same sizes and quality tiers as 2.5, same $30/M image output token rate (calculator: about $0.025 per image).
+  # New request fields: complexity (low|medium|high), output_format svg (generations, n=1) and gif (--param).
+  gpt-image-2.6-sunburst:
+    id: gpt-image-2.6-sunburst
+    kind: image
+    billing: metered
+    description: GPT Image 2.6 Sunburst. OpenAI's current recommendation for detailed work and precise editing. --param complexity=low|medium|high.
+    aliases: [gpt-image-2.6]
+    edit: true
+    size_mode: flexible
+    max_edge: 3840
+    min_pixels: 655360
+    max_pixels: 8294400
+    qualities: [low, medium, high, xhigh, max, auto]
+
+  gpt-image-2.6-flare:
+    id: gpt-image-2.6-flare
+    kind: image
+    billing: metered
+    description: GPT Image 2.6 Flare. Fast 2.6 model for everyday generation. --param complexity=low|medium|high.
+    edit: true
+    size_mode: flexible
+    max_edge: 3840
+    min_pixels: 655360
+    max_pixels: 8294400
+    qualities: [low, medium, high, xhigh, max, auto]
+
   gpt-image-2.5-sunburst:
     id: gpt-image-2.5-sunburst
     kind: image
@@ -57,7 +85,7 @@ models:
     direct_price: { usd: 0.053, unit: image, source: "https://developers.openai.com/api/docs/guides/image-generation (1024x1024 medium, output only)", checked: 2026-10-04 }
     description: GPT Image 2. Flexible sizes and high-fidelity image input; Batch API supported.
     aliases: [gpt-image-2-2026-04-21]
-    deprecated: OpenAI shuts down gpt-image-2 on 2027-02-10. Use gpt-image-2.5-sunburst or gpt-image-2.5-flare.
+    deprecated: OpenAI shuts down gpt-image-2 on 2027-02-10. Use gpt-image-2.6-sunburst or gpt-image-2.6-flare.
     edit: true
     size_mode: flexible
     max_edge: 3840
@@ -70,7 +98,7 @@ models:
     kind: image
     billing: metered
     description: GPT Image 1.5. Fixed sizes only.
-    deprecated: Shuts down 2026-12-01. Use gpt-image-2.5-sunburst or gpt-image-2.5-flare.
+    deprecated: Shuts down 2026-12-01. Use gpt-image-2.6-sunburst or gpt-image-2.6-flare.
     edit: true
     size_mode: fixed
     sizes: [1024x1024, 1536x1024, 1024x1536, auto]
@@ -81,7 +109,7 @@ models:
     kind: image
     billing: metered
     description: GPT Image 1 Mini. Low-cost previous-generation model, fixed sizes only.
-    deprecated: Shuts down 2026-12-01. Use gpt-image-2.5-flare.
+    deprecated: Shuts down 2026-12-01. Use gpt-image-2.6-flare.
     edit: false
     size_mode: fixed
     sizes: [1024x1024, 1536x1024, 1024x1536, auto]
@@ -89,14 +117,14 @@ models:
 
 obsolete:
   gpt-image-1:
-    replacement: gpt-image-2.5-sunburst
-    reason: gpt-image-1 was shut down by OpenAI on October 23, 2026. Use gpt-image-2.5-sunburst or gpt-image-2.5-flare instead.
+    replacement: gpt-image-2.6-sunburst
+    reason: gpt-image-1 was shut down by OpenAI on October 23, 2026. Use gpt-image-2.6-sunburst or gpt-image-2.6-flare instead.
   dall-e-3:
-    replacement: gpt-image-2.5-sunburst
-    reason: DALL-E 3 was removed from the OpenAI API on May 12, 2026. Use gpt-image-2.5-sunburst instead.
+    replacement: gpt-image-2.6-sunburst
+    reason: DALL-E 3 was removed from the OpenAI API on May 12, 2026. Use gpt-image-2.6-sunburst instead.
   dall-e-2:
-    replacement: gpt-image-2.5-flare
-    reason: DALL-E 2 was removed from the OpenAI API on May 12, 2026. Use gpt-image-2.5-flare instead.
+    replacement: gpt-image-2.6-flare
+    reason: DALL-E 2 was removed from the OpenAI API on May 12, 2026. Use gpt-image-2.6-flare instead.
   chatgpt-image-latest:
-    replacement: gpt-image-2.5-sunburst
-    reason: chatgpt-image-latest is deprecated (shutdown December 1, 2026). Use gpt-image-2.5-sunburst instead.
+    replacement: gpt-image-2.6-sunburst
+    reason: chatgpt-image-latest is deprecated (shutdown December 1, 2026). Use gpt-image-2.6-sunburst instead.

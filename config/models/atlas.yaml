@@ -81,6 +81,18 @@ models:
     refs: { identity: 4, style: 2, object: 4, location: 2 }
     inputs: { images: images, max_images: 10, resolution: size, resolution_values: { 2K: "2048*2048" } }
 
+  # https://static.atlascloud.ai/model/schema/bytedance-seedream-v5.5-{text-to-image,edit}.json and readme (read 2026-11-12):
+  # size presets "W*H" (default 2048*2048); edit takes reference_images 1-10; output_format, background; no seed.
+  seedream-5.5:
+    id: bytedance/seedream-v5.5/text-to-image
+    edit_id: bytedance/seedream-v5.5/edit
+    kind: image
+    billing: metered
+    description: ByteDance Seedream 5.5, with editing (up to 10 references). Shape via --param size=W*H (default 2048*2048).
+    label_style: prose
+    refs: { identity: 4, style: 2, object: 4, location: 2 }
+    inputs: { images: reference_images, max_images: 10, resolution: size, resolution_values: { 1K: "1024*1024", 2K: "2048*2048" } }
+
   # --- video ---
   # https://www.atlascloud.ai/models/google/veo3.1/text-to-video , /image-to-video , /reference-to-video (read 2026-10-04):
   # duration 4|6|8 (r2v: 8 only); resolution 720p|1080p|4k; aspect 16:9|9:16; image + last_image;
@@ -151,6 +163,36 @@ models:
     refs: { start: 1, end: 1 }
     default_params: { sound: false }
     inputs: { image: image, end_image: end_image, duration: duration }
+
+  # https://static.atlascloud.ai/model/schema/kwaivgi-kling-v4.0-{text,image}-to-video.json and readme (read 2026-11-12):
+  # duration 3-30; resolution 720p|1080p (native) or 1080p-esr|2k-esr|4k-esr (upscaled); aspect_ratio 16:9|9:16|1:1|21:9 on
+  # text-to-video only; i2v: image + last_image, middle_images up to 8 (--param). No sound switch
+  # ("describe sound in the prompt"), no seed, no negative_prompt. /calculate 8 s: 720p 1.14, 1080p 1.71.
+  kling-4:
+    id: kwaivgi/kling-v4.0/text-to-video
+    i2v_id: kwaivgi/kling-v4.0/image-to-video
+    kind: video
+    billing: metered
+    description: Kling 4.0. 3-30 s, 720p/1080p (4k upscaled), -a 16:9|9:16|1:1|21:9 (text-to-video; image-to-video follows the start frame). Sound is steered by the prompt.
+    refs: { start: 1, end: 1 }
+    duration_range: [3, 30]
+    inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, resolution_values: { 4k: 4k-esr }, aspect_ratio: aspect_ratio, aspect_ratio_text_only: true }
+
+  # https://static.atlascloud.ai/model/schema/alibaba-wan-3.0-{text,image}-to-video.json and readme (read 2026-11-12):
+  # duration 2-30 (or -1 for smart duration, via --param); resolution 480p|720p|1080p or *-esr upscales; ratio
+  # adaptive|16:9|4:3|1:1|3:4|9:16 on text-to-video only (Atlas defaults to adaptive, which gave a portrait clip for a
+  # 16:9-default request on 2026-11-12, so -a is always sent); audio defaults to true at the same price; seed;
+  # no negative_prompt. /calculate 8 s 720p: 0.64.
+  wan-3:
+    id: alibaba/wan-3.0/text-to-video
+    i2v_id: alibaba/wan-3.0/image-to-video
+    kind: video
+    billing: metered
+    description: Wan 3.0. 2-30 s with native sound (--param audio=false, same price). -a 16:9|9:16|1:1|4:3|3:4 (text-to-video; --param ratio=adaptive lets it choose).
+    label_style: wan-numbered
+    refs: { start: 1, end: 1 }
+    duration_range: [2, 30]
+    inputs: { image: image, end_image: last_image, duration: duration, resolution: resolution, resolution_values: { 4k: 4k-esr }, seed: seed, aspect_ratio: ratio, aspect_ratio_text_only: true }
 
   # https://www.atlascloud.ai/models/bytedance/seedance-2.0/image-to-video (read 2026-10-04): image + last_image; duration -1|4-15;
   # resolution 480p..4k; aspect field is "ratio"; seed; generate_audio defaults to true.

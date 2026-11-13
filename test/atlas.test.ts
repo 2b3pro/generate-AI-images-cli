@@ -178,6 +178,38 @@ describe('Atlas default_params (real config)', () => {
   });
 });
 
+describe('new Atlas models (real config)', () => {
+  test('wan-3 sends -a as ratio on text-to-video and leaves it off image-to-video', () => {
+    useRealRegistry();
+    const spec = getModelSpec('wan-3', 'atlas');
+    const t2v = buildAtlasRequest(spec, { model: 'wan-3', prompt: 'p', aspectRatio: '16:9' }, { legacy: [], refs: [] });
+    expect(t2v.modelId).toBe('alibaba/wan-3.0/text-to-video');
+    expect(t2v.body.ratio).toBe('16:9');
+    const i2v = buildAtlasRequest(spec, { model: 'wan-3', prompt: 'p', aspectRatio: '16:9' }, { legacy: ['https://u/f.png'], refs: [] });
+    expect(i2v.modelId).toBe('alibaba/wan-3.0/image-to-video');
+    expect(i2v.body).not.toHaveProperty('ratio');
+    expect(i2v.body.image).toBe('https://u/f.png');
+  });
+
+  test('kling-4 maps 4k to the upscaled tier and sends aspect_ratio on text-to-video only', () => {
+    useRealRegistry();
+    const spec = getModelSpec('kling-4', 'atlas');
+    const t2v = buildAtlasRequest(spec, { model: 'kling-4', prompt: 'p', aspectRatio: '21:9', resolution: '4k', duration: 20 }, { legacy: [], refs: [] });
+    expect(t2v.body).toMatchObject({ aspect_ratio: '21:9', resolution: '4k-esr', duration: 20 });
+    const i2v = buildAtlasRequest(spec, { model: 'kling-4', prompt: 'p', aspectRatio: '21:9' }, { legacy: [], refs: [{ role: 'start', source: 's', url: 'https://u/s.png' }, { role: 'end', source: 'e', url: 'https://u/e.png' }] });
+    expect(i2v.body).toMatchObject({ image: 'https://u/s.png', last_image: 'https://u/e.png' });
+    expect(i2v.body).not.toHaveProperty('aspect_ratio');
+  });
+
+  test('seedream-5.5 edits send reference_images to the edit variant', () => {
+    useRealRegistry();
+    const spec = getModelSpec('seedream-5.5', 'atlas');
+    const r = buildAtlasRequest(spec, { model: 'seedream-5.5', prompt: 'p', size: '1K' }, { legacy: ['https://u/1.png'], refs: [] });
+    expect(r.modelId).toBe('bytedance/seedream-v5.5/edit');
+    expect(r.body).toMatchObject({ reference_images: ['https://u/1.png'], size: '1024*1024' });
+  });
+});
+
 describe('Gemini Omni via Atlas (real config)', () => {
   test('references go to reference-to-video as reference_images, described in prose (1.2 deprecates <IMAGE_REF_N> tags)', () => {
     useRealRegistry();

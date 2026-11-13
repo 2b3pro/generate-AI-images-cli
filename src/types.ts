@@ -63,6 +63,8 @@ export interface AtlasInputs {
   end_image?: string;
   duration?: string;
   aspect_ratio?: string;
+  /** Send aspect_ratio only on the text-to-video variant (image-to-video takes its shape from the start frame) */
+  aspect_ratio_text_only?: boolean;
   seed?: string;
   negative_prompt?: string;
 }

@@ -26,6 +26,25 @@
 provider: replicate
 
 models:
+  # https://replicate.com/black-forest-labs/flux-3-image and API schema (version ec84b8fbf178, read 2026-11-12):
+  # images (refs, up to 10), resolution 768sq|1k|1.5k|2k|4k, aspect_ratio auto + 21:9..9:21, output_format, output_quality,
+  # grounding (web search before generating, default true), safety_tolerance. No seed, steps or guidance.
+  # Price per image by resolution: 768sq 0.041, 1k 0.048, 1.5k 0.07, 2k 0.10, 4k 0.607.
+  flux-3:
+    id: black-forest-labs/flux-3-image
+    kind: image
+    billing: metered
+    direct_price: { usd: 0.048, unit: image, by_size: { 2K: 0.10, 4K: 0.607 }, source: "https://replicate.com/black-forest-labs/flux-3-image (1k)", checked: 2026-11-12 }
+    description: FLUX 3 Image. Newest Black Forest Labs model; generation and editing with up to 10 reference images. Web grounding is on (--param grounding=false). No seed.
+    aliases: [flux3, flux-3-image]
+    aspect_ratios: ["21:9", "2:1", "16:9", "3:2", "7:5", "4:3", "5:4", "1:1", "4:5", "3:4", "5:7", "2:3", "9:16", "1:2", "9:21"]
+    inputs:
+      images: images
+      max_images: 10
+      output_quality: true
+      resolution: resolution
+      resolution_values: { "1K": "1k", "2K": "2k", "4K": "4k" }
+
   flux-2-pro:
     id: black-forest-labs/flux-2-pro
     kind: image

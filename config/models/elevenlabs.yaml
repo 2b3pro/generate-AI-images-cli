@@ -32,8 +32,10 @@ models:
     description: 'Multi-voice dialogue. Prompt lines written as "Speaker: line"; --voice Speaker=<voice> per speaker (max 10). Keep under 2,000 characters.'
     direct_price: { usd: 0.08, unit: 1k_chars, source: "https://elevenlabs.io/pricing/api", checked: 2026-10-07 }
 
+  # https://elevenlabs.io/docs/models and API reference (read 2026-11-12): eleven_text_to_sound_v2 is removed 2027-03-01;
+  # v3 is GA since 2026-11-02 with the same fields (duration_seconds 0.5-30, loop, prompt_influence).
   eleven-sfx:
-    id: eleven_text_to_sound_v2
+    id: eleven_text_to_sound_v3
     kind: audio
     billing: metered
     endpoint: sound

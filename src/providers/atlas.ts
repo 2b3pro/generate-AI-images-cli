@@ -55,7 +55,8 @@ export function buildAtlasRequest(
 
   const body: Record<string, unknown> = { model: modelId, [inputs.prompt ?? 'prompt']: promptSent };
   if (options.negativePrompt && inputs.negative_prompt) body[inputs.negative_prompt] = options.negativePrompt;
-  if (inputs.aspect_ratio && options.aspectRatio) body[inputs.aspect_ratio] = options.aspectRatio;
+  const textOnlyAspect = inputs.aspect_ratio_text_only && modelId !== spec.id;
+  if (inputs.aspect_ratio && options.aspectRatio && !textOnlyAspect) body[inputs.aspect_ratio] = options.aspectRatio;
   const size = options.resolution ?? options.size;
   if (inputs.resolution && size) {
     body[inputs.resolution] = inputs.resolution_values?.[size] ?? inputs.resolution_values?.[size.toUpperCase()] ?? size;
