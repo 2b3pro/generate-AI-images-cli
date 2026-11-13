@@ -80,6 +80,7 @@ export function buildAtlasRequest(
     else throw new Error(`${where} has no reference-image field configured`);
   }
 
+  for (const [k, v] of Object.entries(spec.default_params ?? {})) body[k] = v;
   for (const [k, v] of Object.entries(options.params ?? {})) body[k] = v;
   return { modelId, body, promptSent };
 }

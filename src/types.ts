@@ -156,6 +156,8 @@ export interface ModelSpec {
   aspect_ratios?: string[];
   /** Replicate: how CLI options map onto this model's input schema */
   inputs?: ReplicateInputs & AtlasInputs;
+  /** Atlas: request fields always sent (e.g. sound off where the vendor default is on); --param overrides them */
+  default_params?: Record<string, unknown>;
 }
 
 /**

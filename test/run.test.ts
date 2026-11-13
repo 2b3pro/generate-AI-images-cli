@@ -207,12 +207,22 @@ describe('real config drafts', () => {
     expect(atlas.calls.generate[0].model).toBe('veo-3.1-fast');
   });
 
-  test('`--via google` still reaches the Veo preview ids until their shutdown', async () => {
+  test('`--via google` is refused for veo-3.1 now that Google shut its preview ids down', async () => {
     useRealRegistry();
     const google = new FakeProvider();
     const json = await run(req({ modelInput: 'veo-3.1', via: 'google', draft: true }, { output: '/tmp/w.mp4' }), deps({ google }));
-    expect(json.exit_code).toBe(0);
-    expect(google.calls.generate[0].model).toBe('veo-3.1-lite');
+    expect(json.exit_code).toBe(2);
+    expect(json.error).toMatch(/not offered by google/);
+    expect(google.calls.generate).toHaveLength(0);
+  });
+
+  test('`-m veo-3.1-lite` is refused with a pointer to gemini-omni', async () => {
+    useRealRegistry();
+    const google = new FakeProvider();
+    const json = await run(req({ modelInput: 'veo-3.1-lite' }, { output: '/tmp/w.mp4' }), deps({ google }));
+    expect(json.exit_code).not.toBe(0);
+    expect(json.error).toMatch(/gemini-omni/);
+    expect(google.calls.generate).toHaveLength(0);
   });
 
   test('`-m omni --draft` stays on google at 360p', async () => {
@@ -220,16 +230,16 @@ describe('real config drafts', () => {
     const google = new FakeProvider();
     const json = await run(req({ modelInput: 'omni', draft: true }, { output: '/tmp/w.mp4' }), deps({ google }));
     expect(json.exit_code).toBe(0);
-    expect(json.provider_model_id).toBe('gemini-omni-1.1-flash');
+    expect(json.provider_model_id).toBe('gemini-omni-1.2-flash');
     expect(google.calls.generate[0]).toMatchObject({ model: 'gemini-omni', resolution: '360p', draft: true });
   });
 
-  test('gemini-omni refuses a --duration outside 3-10 s before anything is sent', async () => {
+  test('gemini-omni refuses a --duration outside 3-15 s before anything is sent', async () => {
     useRealRegistry();
     const google = new FakeProvider();
-    const json = await run(req({ modelInput: 'gemini-omni' }, { output: '/tmp/w.mp4', duration: 12 }), deps({ google }));
+    const json = await run(req({ modelInput: 'gemini-omni' }, { output: '/tmp/w.mp4', duration: 16 }), deps({ google }));
     expect(json.exit_code).toBe(2);
-    expect(json.error).toMatch(/takes --duration 3-10 s/);
+    expect(json.error).toMatch(/takes --duration 3-15 s/);
     expect(google.calls.generate).toHaveLength(0);
   });
 });

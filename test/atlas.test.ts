@@ -160,17 +160,36 @@ describe('review fixes', () => {
   });
 });
 
+describe('Atlas default_params (real config)', () => {
+  test('veo-3.1 sends generate_audio=false unless --param overrides it', () => {
+    useRealRegistry();
+    const spec = getModelSpec('veo-3.1', 'atlas');
+    expect(buildAtlasRequest(spec, { model: 'veo-3.1', prompt: 'p' }, { legacy: [], refs: [] }).body.generate_audio).toBe(false);
+    expect(buildAtlasRequest(spec, { model: 'veo-3.1', prompt: 'p', params: { generate_audio: true } }, { legacy: [], refs: [] }).body.generate_audio).toBe(true);
+  });
+
+  test('kling-3-pro sends sound=false and no resolution or negative_prompt field', () => {
+    useRealRegistry();
+    const spec = getModelSpec('kling-3-pro', 'atlas');
+    const { body } = buildAtlasRequest(spec, { model: 'kling-3-pro', prompt: 'p', negativePrompt: 'blur', resolution: '1080p' }, { legacy: [], refs: [] });
+    expect(body.sound).toBe(false);
+    expect(body).not.toHaveProperty('resolution');
+    expect(body).not.toHaveProperty('negative_prompt');
+  });
+});
+
 describe('Gemini Omni via Atlas (real config)', () => {
-  test('references go to reference-to-video as reference_images, named <IMAGE_REF_N> in the prompt', () => {
+  test('references go to reference-to-video as reference_images, described in prose (1.2 deprecates <IMAGE_REF_N> tags)', () => {
     useRealRegistry();
     const spec = getModelSpec('gemini-omni', 'atlas');
     const { modelId, body } = buildAtlasRequest(spec, { model: 'gemini-omni', prompt: 'two friends toast', duration: 6, resolution: '1080p' }, {
       legacy: [],
       refs: [{ role: 'identity', source: 'a', url: 'https://x/a.png' }, { role: 'identity', source: 'b', url: 'https://x/b.png' }],
     });
-    expect(modelId).toBe('google/gemini-omni-1.1-flash/reference-to-video');
+    expect(modelId).toBe('google/gemini-omni-1.2-flash/reference-to-video');
     expect(body.reference_images).toEqual(['https://x/a.png', 'https://x/b.png']);
-    expect(body.prompt).toContain('<IMAGE_REF_1>: identity reference');
+    expect(body.prompt).toContain('the second image is the identity reference');
+    expect(body.prompt).not.toContain('<IMAGE_REF');
     expect(body).toMatchObject({ duration: 6, resolution: '1080p' });
   });
 
@@ -181,7 +200,7 @@ describe('Gemini Omni via Atlas (real config)', () => {
       legacy: [],
       refs: [{ role: 'start', source: 's', url: 'https://x/s.png' }, { role: 'end', source: 'e', url: 'https://x/e.png' }],
     });
-    expect(modelId).toBe('google/gemini-omni-1.1-flash/image-to-video');
+    expect(modelId).toBe('google/gemini-omni-1.2-flash/image-to-video');
     expect(body).toMatchObject({ image: 'https://x/s.png', last_image: 'https://x/e.png' });
   });
 });

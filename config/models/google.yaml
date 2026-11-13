@@ -1,4 +1,5 @@
-# Google Gemini models (Nano Banana image family, Gemini Omni and Veo video).
+# Google Gemini models (Nano Banana image family, Gemini Omni video).
+# Veo on the Gemini API was shut down 2026-10-22; veo-3.1 and veo-3.1-fast are served by Atlas.
 # Docs: https://ai.google.dev/gemini-api/docs/image-generation
 #       https://ai.google.dev/gemini-api/docs/omni
 #       https://ai.google.dev/gemini-api/docs/veo
@@ -70,95 +71,78 @@ models:
     billing: metered
     description: Gemini 2.5 Flash Image. Legacy baseline, fixed ~1024px output, no size control.
     aliases: [gemini-2.5-flash-image, gemini-2.5-flash]
-    deprecated: Shuts down 2026-10-02. Use nano-banana-2 or nano-banana-2-lite.
+    deprecated: Google shuts down gemini-2.5-flash-image on 2027-03-15. Use nano-banana-2.1 or nano-banana-2-lite.
 
-  # https://ai.google.dev/gemini-api/docs/omni and /models/gemini-omni-flash (read 2026-10-08): GA 2026-08-27;
-  # 3-10 s at 24 fps; 16:9|9:16; 360p|720p (1080p and 4k are upscaled); audio always on, steered by the prompt;
-  # no negative prompt. Live background interaction 2026-10-08: duration "4s" gave a 4.03 s 1280x720 clip with AAC audio,
-  # billed 23,168 video tokens (5,792 per second).
+  # https://ai.google.dev/gemini-api/docs/omni , /models/gemini-omni-flash , /deprecations (read 2026-11-12):
+  # gemini-omni-1.2-flash GA 2026-11-05; gemini-omni-1.1-flash shuts down 2026-12-03 (requests then route to 1.2).
+  # 3-15 s at 24 fps (default 10; first+last frame interpolation and extension stay 3-10 s); 16:9|9:16;
+  # 360p|720p (1080p and 4k are upscaled); audio always on, steered by the prompt; no negative prompt.
+  # 1.1 live check 2026-10-08: duration "4s" gave a 4.03 s 1280x720 clip with AAC audio, billed 5,792 video tokens per second.
   gemini-omni:
-    id: gemini-omni-1.1-flash
+    id: gemini-omni-1.2-flash
     kind: video
     billing: metered
     api: interactions
     draft: { resolution: 360p }
-    # 1080p and 4k are unpublished on Google: priced at Atlas's /calculate ratios to 720p (1.45x, 2.82x) so --max-cost stays safe;
-    # 360p is unpublished too and is quoted at the 720p rate (over-quotes, never under).
-    direct_price: { usd: 0.1014, unit: second, by_size: { 1080p: 0.1475, 4k: 0.2858 }, source: "https://ai.google.dev/gemini-api/docs/pricing (720p: 5,792 video tokens per second at $17.50/M)", checked: 2026-10-08 }
-    description: Gemini Omni 1.1 Flash. 3-10 s clips, 16:9 or 9:16, 360p/720p (1080p/4k upscaled), image-to-video via -r. Sound ON (always; steer it in the prompt). No negative prompt.
-    aliases: [omni, omni-flash, gemini-omni-flash, gemini-omni-1.1-flash]
+    # Video output $12/M tokens: 720p 5,792 tok/s, 360p 1,931, 1080p 8,688, 4k 17,376 (all published for 1.2).
+    direct_price: { usd: 0.0695, unit: second, by_size: { 360p: 0.0232, 1080p: 0.1043, 4k: 0.2085 }, source: "https://ai.google.dev/gemini-api/docs/pricing (gemini-omni-1.2-flash, video output $12.00/M tokens)", checked: 2026-11-12 }
+    description: Gemini Omni 1.2 Flash. 3-15 s clips, 16:9 or 9:16, 360p/720p (1080p/4k upscaled), image-to-video via -r. Sound ON (always; steer it in the prompt). No negative prompt.
+    aliases: [omni, omni-flash, gemini-omni-flash, gemini-omni-1.2-flash, gemini-omni-1.1-flash]
     resolutions: [720p, 360p, 1080p, 4k]
-    duration_range: [3, 10]
-
-  veo-3.1:
-    id: veo-3.1-generate-preview
-    kind: video
-    billing: metered
-    draft: { model: veo-3.1-lite }
-    direct_price: { usd: 0.40, unit: second, by_size: { 4k: 0.60 }, source: "https://ai.google.dev/gemini-api/docs/pricing (720p/1080p with audio)", checked: 2026-10-08 }
-    description: Veo 3.1. Cinematic 720p/1080p/4k video, 16:9 or 9:16, 4-8s, image-to-video via -r. Sound ON (native).
-    aliases: [veo, veo-3.1-generate-preview]
-    resolutions: [720p, 1080p, 4k]
-    deprecated: Google shuts down veo-3.1-generate-preview on 2026-10-22. -m veo-3.1 now routes to Atlas; use gemini-omni for Google direct.
-
-  veo-3.1-fast:
-    id: veo-3.1-fast-generate-preview
-    kind: video
-    billing: metered
-    draft: { model: veo-3.1-lite }
-    direct_price: { usd: 0.10, unit: second, by_size: { 1080p: 0.12, 4k: 0.30 }, source: "https://ai.google.dev/gemini-api/docs/pricing (720p with audio)", checked: 2026-10-08 }
-    description: Veo 3.1 Fast. Same features as Veo 3.1 with lower latency. Sound ON (native).
-    aliases: [veo-fast, veo-3.1-fast-generate-preview]
-    resolutions: [720p, 1080p, 4k]
-    deprecated: Google shuts down veo-3.1-fast-generate-preview on 2026-10-22. -m veo-3.1-fast now routes to Atlas; use gemini-omni for Google direct.
-
-  veo-3.1-lite:
-    id: veo-3.1-lite-generate-preview
-    kind: video
-    billing: metered
-    direct_price: { usd: 0.05, unit: second, by_size: { 1080p: 0.08 }, source: "https://ai.google.dev/gemini-api/docs/pricing (720p with audio)", checked: 2026-10-08 }
-    description: Veo 3.1 Lite. Fast 4-8s clips at 720p/1080p, text- and image-to-video only. Sound ON (native).
-    aliases: [veo-lite, veo-3.1-lite-generate-preview]
-    resolutions: [720p, 1080p]
-    deprecated: Google shuts down veo-3.1-lite-generate-preview on 2026-10-22 and no reseller offers it. Use gemini-omni (--draft for 360p).
+    duration_range: [3, 15]
 
 obsolete:
+  veo-3.1-generate-preview:
+    replacement: veo-3.1
+    reason: Google shut down veo-3.1-generate-preview on October 22, 2026. Use veo-3.1 (served by Atlas) or gemini-omni for Google direct.
+  veo-3.1-fast-generate-preview:
+    replacement: veo-3.1-fast
+    reason: Google shut down veo-3.1-fast-generate-preview on October 22, 2026. Use veo-3.1-fast (served by Atlas) or gemini-omni for Google direct.
+  veo-3.1-lite:
+    replacement: gemini-omni
+    reason: Google shut down veo-3.1-lite-generate-preview on October 22, 2026. Use gemini-omni (--draft renders 360p at about $0.023/s).
+  veo-lite:
+    replacement: gemini-omni
+    reason: Google shut down veo-3.1-lite-generate-preview on October 22, 2026. Use gemini-omni (--draft renders 360p at about $0.023/s).
+  veo-3.1-lite-generate-preview:
+    replacement: gemini-omni
+    reason: Google shut down veo-3.1-lite-generate-preview on October 22, 2026. Use gemini-omni (--draft renders 360p at about $0.023/s).
   gemini-omni-flash-preview:
     replacement: gemini-omni
-    reason: The Omni preview id shuts down on October 22, 2026. Use gemini-omni (gemini-omni-1.1-flash) instead.
+    reason: The Omni preview id was shut down on October 22, 2026. Use gemini-omni (gemini-omni-1.2-flash) instead.
   imagen-3:
-    replacement: nano-banana-2
-    reason: Imagen is shut down on the Gemini API. Use nano-banana-2 (Gemini 3.1 Flash Image) instead.
+    replacement: nano-banana-2.1
+    reason: Imagen 3 is shut down on the Gemini API. Use nano-banana-2.1 (Nano Banana 2.1) instead.
   imagen-3-fast:
-    replacement: nano-banana-2-lite
-    reason: Imagen is shut down on the Gemini API. Use nano-banana-2-lite (Gemini 3.1 Flash Lite Image) instead.
+    replacement: nano-banana-2.1
+    reason: Imagen 3 is shut down on the Gemini API. Use nano-banana-2.1, or nano-banana-2-lite for the lowest latency.
   imagen-3.0-generate-002:
-    replacement: nano-banana-2
-    reason: Imagen is shut down on the Gemini API. Use nano-banana-2 (Gemini 3.1 Flash Image) instead.
+    replacement: nano-banana-2.1
+    reason: Imagen 3 was shut down by Google on November 10, 2025. Use nano-banana-2.1 (Nano Banana 2.1) instead.
   imagen-3.0-fast-generate-001:
-    replacement: nano-banana-2-lite
-    reason: Imagen is shut down on the Gemini API. Use nano-banana-2-lite (Gemini 3.1 Flash Lite Image) instead.
+    replacement: nano-banana-2.1
+    reason: Imagen 3 is shut down on the Gemini API. Use nano-banana-2.1, or nano-banana-2-lite for the lowest latency.
   imagen-4:
-    replacement: nano-banana-pro
-    reason: Imagen 4 was shut down by Google on August 17, 2026. Use nano-banana-pro (Gemini 3 Pro Image) instead.
+    replacement: nano-banana-2.1
+    reason: Imagen 4 was shut down by Google on August 17, 2026. Use nano-banana-2.1, or nano-banana-pro for precise typography and layouts.
   imagen-4.0-generate-001:
-    replacement: nano-banana-pro
-    reason: Imagen 4 was shut down by Google on August 17, 2026. Use nano-banana-pro (Gemini 3 Pro Image) instead.
+    replacement: nano-banana-2.1
+    reason: Imagen 4 was shut down by Google on August 17, 2026. Use nano-banana-2.1, or nano-banana-pro for precise typography and layouts.
   imagen-4.0-ultra-generate-001:
-    replacement: nano-banana-pro
-    reason: Imagen 4 Ultra was shut down by Google on August 17, 2026. Use nano-banana-pro (Gemini 3 Pro Image) instead.
+    replacement: nano-banana-2.1
+    reason: Imagen 4 Ultra was shut down by Google on August 17, 2026. Use nano-banana-2.1, or nano-banana-pro for precise typography and layouts.
   imagen-4.0-fast-generate-001:
-    replacement: nano-banana-2-lite
-    reason: Imagen 4 Fast was shut down by Google on August 17, 2026. Use nano-banana-2-lite instead.
+    replacement: nano-banana-2.1
+    reason: Imagen 4 Fast was shut down by Google on August 17, 2026. Use nano-banana-2.1, or nano-banana-2-lite for the lowest latency.
   gemini-3.1-flash-image-preview:
-    replacement: nano-banana-2
-    reason: The preview id was shut down on June 25, 2026. Use nano-banana-2 (gemini-3.1-flash-image) instead.
+    replacement: nano-banana-2.1
+    reason: The preview id was shut down on June 25, 2026. Use nano-banana-2.1 (gemini-nano-banana-2.1) instead.
   gemini-3-pro-image-preview:
     replacement: nano-banana-pro
     reason: The preview id was shut down on June 25, 2026. Use nano-banana-pro (gemini-3-pro-image) instead.
   gemini-2.5-flash-image-preview:
-    replacement: nano-banana-2
-    reason: The preview id was shut down on January 15, 2026. Use nano-banana-2 instead.
+    replacement: nano-banana-2.1
+    reason: The preview id was shut down on January 15, 2026. Use nano-banana-2.1 instead.
   veo-2:
     replacement: veo-3.1
     reason: Veo 2.0 was shut down by Google on June 30, 2026. Use veo-3.1 instead.

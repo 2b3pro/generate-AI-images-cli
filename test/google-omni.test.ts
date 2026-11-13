@@ -64,7 +64,7 @@ describe('Omni jobs', () => {
     const result = await provider(api).generate({ model: 'gemini-omni', prompt: 'a paper boat', output: out, aspectRatio: '4:3', negativePrompt: 'text' });
     expect(result.success).toBe(true);
     expect(calls.create[0]).toEqual({
-      model: 'gemini-omni-1.1-flash',
+      model: 'gemini-omni-1.2-flash',
       input: 'a paper boat Avoid: text',
       background: true,
       response_format: { type: 'video', aspect_ratio: '16:9', resolution: '720p', duration: '8s' },

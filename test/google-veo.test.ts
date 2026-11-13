@@ -4,7 +4,21 @@ import path from 'path';
 import type { GoogleGenAI } from '@google/genai';
 import { GoogleProvider, veoPollState } from '../src/providers/google';
 import { readJob, writeJob } from '../src/utils/jobs';
-import { tmpDir, useRealRegistry } from './helpers/registry';
+import { tmpDir, useRealRegistry, writeRegistry } from './helpers/registry';
+
+// Google shut its Gemini API Veo ids down on 2026-10-22, so the real config no longer lists a Google Veo model.
+// The generateVideos path stays covered against a one-model fixture.
+const VEO_FIXTURE = {
+  'google.yaml': `
+provider: google
+models:
+  veo-3.1-lite:
+    id: veo-3.1-lite-generate-preview
+    kind: video
+    billing: metered
+    resolutions: [720p, 1080p]
+`,
+};
 
 function fakeClient(sequence: Array<Record<string, unknown>>) {
   const calls = { generate: 0, poll: 0 };
@@ -27,7 +41,7 @@ function fakeClient(sequence: Array<Record<string, unknown>>) {
 }
 
 beforeEach(() => {
-  useRealRegistry();
+  writeRegistry(VEO_FIXTURE);
   process.env.GENERATE_JOBS_DIR = tmpDir('gen-jobs-');
 });
 afterAll(useRealRegistry);

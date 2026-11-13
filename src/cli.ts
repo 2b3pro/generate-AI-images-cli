@@ -433,7 +433,7 @@ ${chalk.bold('Examples:')}
   ${chalk.dim('# Ultra-fast sub-2s image generation (Gemini 3.1 Flash Lite Image)')}
   $ generate -m nano-banana-2-lite "Minimalist logo of a golden owl"
 
-  ${chalk.dim('# Video with sound on Google direct (Gemini Omni 1.1 Flash, 3-10 s)')}
+  ${chalk.dim('# Video with sound on Google direct (Gemini Omni 1.2 Flash, 3-15 s)')}
   $ generate -m omni "A drone flying smoothly through a vibrant neon cyberpunk metropolis at night" --duration 6
 
   ${chalk.dim('# Portrait 9:16 for mobile')}
