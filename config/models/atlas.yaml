@@ -38,18 +38,6 @@ models:
     refs: { identity: 6, style: 4, object: 6, location: 4 }
     inputs: { images: images, max_images: 10, aspect_ratio: aspect_ratio, resolution: resolution, resolution_values: { 1K: 1k, 2K: 2k, 4K: 4k }, seed: seed }
 
-  # https://www.atlascloud.ai/models/openai/gpt-image-2/text-to-image , .../edit (read 2026-10-04): no aspect_ratio or seed; size is WxH
-  # (1024x1024, 1536x1024, 1024x1536, 2048x2048, 2048x1152, 3840x2160, ...). Use -s WxH for other shapes.
-  gpt-image-2:
-    id: openai/gpt-image-2/text-to-image
-    edit_id: openai/gpt-image-2/edit
-    kind: image
-    billing: metered
-    description: GPT Image 2 via Atlas. Shape via -s WxH (e.g. 1536x1024); no aspect ratio or seed.
-    label_style: prose
-    refs: { identity: 4, style: 2, object: 4, location: 2 }
-    inputs: { images: images, max_images: 10, resolution: size, resolution_values: { 1K: 1024x1024, 2K: 2048x2048, 4K: 3840x2160 } }
-
   # https://www.atlascloud.ai/models/black-forest-labs/flux-2-pro/edit (read 2026-10-04): images 1-8; size "W*H" 256-2048; seed
   flux-2-pro:
     id: black-forest-labs/flux-2-pro/text-to-image

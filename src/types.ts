@@ -49,6 +49,8 @@ export interface DirectPrice {
   checked?: string;
   /** Price per unit by output size: image size (512, 1K, 2K, 4K) or video resolution (360p, 720p, 1080p, 4k). `usd` covers the default and any size not listed. */
   by_size?: Record<string, number>;
+  /** Image models: multiplier on the size price by quality (hd = high, standard = medium; unlisted = 1). */
+  by_quality?: Record<string, number>;
 }
 
 export interface DraftTier {

@@ -33,6 +33,10 @@ export async function priceFor(spec: ModelSpec, provider: ImageProvider, options
   let usd = p.usd;
   const size = options.resolution ?? options.size;
   if (size && p.by_size) usd = p.by_size[size] ?? p.by_size[size.toUpperCase()] ?? p.by_size[size.toLowerCase()] ?? usd;
+  if (p.by_quality && options.quality) {
+    const quality = options.quality === 'hd' ? 'high' : options.quality === 'standard' ? 'medium' : options.quality;
+    usd *= p.by_quality[quality] ?? 1;
+  }
   if (p.unit === 'second') usd *= options.duration ?? 8;
   if (p.unit === 'minute') {
     const clipSeconds = spec.endpoint === 'video-to-music' ? clipLength(options.referenceImages ?? []) : undefined;

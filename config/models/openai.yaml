@@ -31,6 +31,11 @@ models:
     id: gpt-image-2.6-sunburst
     kind: image
     billing: metered
+    # Priced at high quality by size from Atlas /calculate for openai/gpt-image-2.6-* (2026-11-12; its 3840x2160 medium
+    # quote is 825 tokens at OpenAI's $30/M, matching OpenAI's own calculator). Unlisted sizes (e.g. 3840x1648) take the
+    # highest listed price. Quality ratios measured at 1024 to 3840: medium <= 0.34, xhigh 1.75, max 3.87; low is
+    # unmeasured and priced as medium (over-quotes, never under).
+    direct_price: { usd: 0.0896, unit: image, by_size: { 1024x1024: 0.0461, 1536x1024: 0.0369, 2048x2048: 0.0896, 2048x1152: 0.0379, 3840x2160: 0.0841 }, by_quality: { low: 0.34, medium: 0.34, high: 1, auto: 1, xhigh: 1.75, max: 3.87 }, source: "Atlas /calculate (openai/gpt-image-2.6-*, high quality)", checked: 2026-11-12 }
     description: GPT Image 2.6 Sunburst. OpenAI's current recommendation for detailed work and precise editing. --param complexity=low|medium|high.
     aliases: [gpt-image-2.6]
     edit: true
@@ -44,6 +49,11 @@ models:
     id: gpt-image-2.6-flare
     kind: image
     billing: metered
+    # Priced at high quality by size from Atlas /calculate for openai/gpt-image-2.6-* (2026-11-12; its 3840x2160 medium
+    # quote is 825 tokens at OpenAI's $30/M, matching OpenAI's own calculator). Unlisted sizes (e.g. 3840x1648) take the
+    # highest listed price. Quality ratios measured at 1024 to 3840: medium <= 0.34, xhigh 1.75, max 3.87; low is
+    # unmeasured and priced as medium (over-quotes, never under).
+    direct_price: { usd: 0.0896, unit: image, by_size: { 1024x1024: 0.0461, 1536x1024: 0.0369, 2048x2048: 0.0896, 2048x1152: 0.0379, 3840x2160: 0.0841 }, by_quality: { low: 0.34, medium: 0.34, high: 1, auto: 1, xhigh: 1.75, max: 3.87 }, source: "Atlas /calculate (openai/gpt-image-2.6-*, high quality)", checked: 2026-11-12 }
     description: GPT Image 2.6 Flare. Fast 2.6 model for everyday generation. --param complexity=low|medium|high.
     edit: true
     size_mode: flexible
@@ -78,21 +88,6 @@ models:
     max_pixels: 8294400
     qualities: [low, medium, high, xhigh, max, auto]
 
-  gpt-image-2:
-    id: gpt-image-2
-    kind: image
-    billing: metered
-    direct_price: { usd: 0.053, unit: image, source: "https://developers.openai.com/api/docs/guides/image-generation (1024x1024 medium, output only)", checked: 2026-10-04 }
-    description: GPT Image 2. Flexible sizes and high-fidelity image input; Batch API supported.
-    aliases: [gpt-image-2-2026-04-21]
-    deprecated: OpenAI shuts down gpt-image-2 on 2027-02-10. Use gpt-image-2.6-sunburst or gpt-image-2.6-flare.
-    edit: true
-    size_mode: flexible
-    max_edge: 3840
-    min_pixels: 655360
-    max_pixels: 8294400
-    qualities: [low, medium, high, auto]
-
   gpt-image-1.5:
     id: gpt-image-1.5
     kind: image
@@ -116,6 +111,12 @@ models:
     qualities: [low, medium, high, auto]
 
 obsolete:
+  gpt-image-2:
+    replacement: gpt-image-2.6-sunburst
+    reason: gpt-image-2 is retired here ahead of OpenAI's 2027-02-10 shutdown. Use gpt-image-2.6-sunburst (same sizes, cheaper per image), or codex-image for the Codex plan route.
+  gpt-image-2-2026-04-21:
+    replacement: gpt-image-2.6-sunburst
+    reason: gpt-image-2 is retired here ahead of OpenAI's 2027-02-10 shutdown. Use gpt-image-2.6-sunburst instead.
   gpt-image-1:
     replacement: gpt-image-2.6-sunburst
     reason: gpt-image-1 was shut down by OpenAI on October 23, 2026. Use gpt-image-2.6-sunburst or gpt-image-2.6-flare instead.

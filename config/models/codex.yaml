@@ -8,12 +8,14 @@
 provider: codex
 
 models:
-  gpt-image-2:
-    id: gpt-image-2
+  # Renamed from gpt-image-2 on 2026-11-12: Codex picks the image model itself (GPT Image 2 when last checked),
+  # and the route ignores -a and -s (size=auto; a 21:9 request came back 2172x724).
+  codex-image:
+    id: codex $imagegen default
     kind: image
     billing: plan
     agentic: true
     reasoning_effort: high
     timeout_seconds: 600
-    description: GPT Image 2 via Codex $imagegen. Unpaid at the margin; slower; good for conservative restoration.
+    description: Codex $imagegen (Codex chooses the model). Unpaid at the margin; slower; ignores -a and -s; good for conservative restoration.
     direct_price: { usd: 0, unit: plan limits }

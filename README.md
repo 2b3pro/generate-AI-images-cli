@@ -90,7 +90,6 @@ Use `generate --list-models` to view all available models from your terminal.
 | **`gpt-image-2.6-flare`** | Image | **Fast everyday OpenAI generation, current generation** | GPT Image 2.6 Flare. Same features as 2.6 Sunburst at lower latency. |
 | **`gpt-image-2.5-sunburst`** | Image | **Highest-quality OpenAI generation and precise editing / inpainting** | GPT Image 2.5 Sunburst. Any WxH divisible by 16 (longest edge ≤ 3840px, 0.65–8.3 MP), `xhigh`/`max` quality tiers, transparent backgrounds, reference-image editing (`-r`). Aliases: `sunburst`, `gpt-image-2.5`. |
 | **`gpt-image-2.5-flare`** | Image | **Fast, high-quality everyday OpenAI generation** | GPT Image 2.5 Flare. Same sizes, quality tiers, and editing as Sunburst at lower latency. Alias: `flare`. |
-| **`gpt-image-2`** | Image | *Deprecated by OpenAI 2026-11-10 (shutdown 2027-02-10)*; Batch API workloads | Any WxH divisible by 16 (longest edge ≤ 3840px), `low`–`high` quality, image-to-image editing. |
 | **`gpt-image-1.5`** | Image | *Deprecated (shutdown 2026-12-01)* | Fixed sizes only. Use a GPT Image 2.6 model. |
 | **`gpt-image-1-mini`** | Image | *Deprecated (shutdown 2026-12-01)* | Fixed sizes only. Use `gpt-image-2.6-flare`. |
 | **`flux-3`** | Image | **Newest FLUX for generation and editing** | FLUX 3 Image via Replicate. Up to 10 reference images (`-r`), 1K/2K/4K, aspect ratios from 21:9 to 9:21, about $0.048 per 1K image. Web grounding is on by default (`--param grounding=false`). No seed. Alias: `flux3`. |
@@ -103,7 +102,7 @@ Use `generate --list-models` to view all available models from your terminal.
 | **`flux-schnell`** | Image | **Rapid drafting at minimal cost** | FLUX.1 Schnell, 4-step, about $0.003 per image. |
 | **`flux-pro`** | Image | *Deprecated on Replicate* | Original FLUX.1 Pro. Use `flux` or `flux-2-pro`. |
 
-> **Note on Retired Models:** the Imagen line, Veo 2.0, Veo 3.0, Veo 3.1 Lite and the Veo 3.1 preview ids, the `-preview` Nano Banana ids and `gemini-omni-flash-preview` (Google) and `gpt-image-1`, `dall-e-2`, `dall-e-3` (OpenAI) are retired. `generate` refuses them with a migration hint pointing at the current replacement.
+> **Note on Retired Models:** the Imagen line, Veo 2.0, Veo 3.0, Veo 3.1 Lite and the Veo 3.1 preview ids, the `-preview` Nano Banana ids and `gemini-omni-flash-preview` (Google) and `gpt-image-2` (retired early, ahead of OpenAI's 2027-02-10 shutdown), `gpt-image-1`, `dall-e-2`, `dall-e-3` (OpenAI) are retired. The Codex plan route that used the `gpt-image-2` name is now `codex-image`. `generate` refuses them with a migration hint pointing at the current replacement.
 
 ### Model Configuration
 
@@ -196,7 +195,7 @@ which one serves it; `--via <provider>` picks another for one call.
 |---|---|---|
 | google, openai, replicate | metered | Direct APIs |
 | atlas | metered | Reseller for image, video, and audio models; prices quoted with `--quote` |
-| codex | plan | Codex `$imagegen`; draws on Codex plan limits; agentic and slower |
+| codex | plan | `codex-image`: Codex `$imagegen`, which picks its own model and ignores `-a`/`-s`; draws on Codex plan limits; agentic and slower |
 | agy | plan | Antigravity CLI; draws on the signed-in Google plan; agentic and slower |
 | elevenlabs | metered | Speech in your own voices, dialogue, sound effects, music, video-to-music |
 

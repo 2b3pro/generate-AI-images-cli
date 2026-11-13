@@ -45,3 +45,22 @@ test('per-size list prices: image sizes and video resolutions, base price for an
   expect((await priceFor(vid, provider, { model: 'm', prompt: 'p', resolution: '4K', duration: 8 }))?.usd).toBeCloseTo(2.2864);
   expect((await priceFor(vid, provider, { model: 'm', prompt: 'p', resolution: '360p', duration: 5 }))?.usd).toBeCloseTo(0.507);
 });
+
+test('per-quality multipliers: hd is high, standard is medium, unlisted qualities are 1', async () => {
+  const img = spec({ kind: 'image', direct_price: { usd: 0.0896, unit: 'image', by_size: { '3840x2160': 0.0841 }, by_quality: { medium: 0.34, xhigh: 1.75, max: 3.87 } } });
+  const at = async (size: string, quality?: 'standard' | 'hd' | 'medium' | 'high' | 'max') => (await priceFor(img, provider, { model: 'm', prompt: 'p', size, quality }))?.usd;
+  expect(await at('3840x2160', 'hd')).toBeCloseTo(0.0841);
+  expect(await at('3840x2160', 'standard')).toBeCloseTo(0.0841 * 0.34);
+  expect(await at('3840x2160', 'max')).toBeCloseTo(0.0841 * 3.87);
+  expect(await at('3840x1648', 'hd')).toBeCloseTo(0.0896);
+  expect(await at('3840x2160')).toBeCloseTo(0.0841);
+});
+
+test('real config: GPT Image 2.6 at the sizes PAI callers use', async () => {
+  const { useRealRegistry } = await import('./helpers/registry');
+  const { getModelSpec } = await import('../src/config/models');
+  useRealRegistry();
+  const s = getModelSpec('gpt-image-2.6-sunburst', 'openai');
+  expect((await priceFor(s, provider, { model: s.name, prompt: 'p', size: '3840x2160', quality: 'hd' }))?.usd).toBeCloseTo(0.0841);
+  expect((await priceFor(s, provider, { model: s.name, prompt: 'p', size: '3840x1648', quality: 'hd' }))?.usd).toBeCloseTo(0.0896);
+});

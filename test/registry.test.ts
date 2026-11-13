@@ -69,7 +69,17 @@ describe('real config', () => {
     const reg = loadModelRegistry();
     expect(reg.models['nano-banana-2'].provider).toBe('google');
     expect(reg.models['nano-banana-2'].billing).toBe('metered');
-    expect(reg.models['gpt-image-2'].provider).toBe('openai');
+    expect(reg.models['gpt-image-2.6-sunburst'].provider).toBe('openai');
+  });
+
+  test('gpt-image-2 is retired everywhere; the Codex plan route is codex-image and does not answer to it', () => {
+    useRealRegistry();
+    const reg = loadModelRegistry();
+    expect(reg.models['gpt-image-2']).toBeUndefined();
+    expect(() => resolveModel('gpt-image-2')).toThrow(/obsolete.*gpt-image-2\.6-sunburst/);
+    expect(() => resolveModel('gpt-image-2-2026-04-21')).toThrow(/obsolete/);
+    expect(reg.models['codex-image'].provider).toBe('codex');
+    expect(reg.models['codex-image'].billing).toBe('plan');
   });
 
   test('the October 2026 Google changes: 2.1 is the default, Omni resolves, Veo routes to Atlas', () => {

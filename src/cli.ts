@@ -151,7 +151,7 @@ program
   .option('-p, --prompt <text>', 'Generation prompt (alternative to positional argument)')
   .option(
     '-s, --size <size>',
-    'Image size: 512|1K|2K|4K (Google; 512 is nano-banana-2 only), WxH (gpt-image-2 and newer accept any dimensions divisible by 16, longest edge <= 3840), or a fixed preset',
+    'Image size: 512|1K|2K|4K (Google; 512 is nano-banana-2 only), WxH (GPT Image 2.5 and newer accept any dimensions divisible by 16, longest edge <= 3840), or a fixed preset',
     (val) => {
       const presets = ['512', '1K', '2K', '4K', 'auto'];
       if (presets.includes(val) || /^\d+x\d+$/.test(val)) return val;
@@ -188,7 +188,7 @@ program
   .option('--steps <number>', 'Number of inference steps', parseInt)
   .option('--guidance <number>', 'Guidance scale', parseFloat)
   .addOption(
-    new Option('-q, --quality <quality>', 'Image quality (OpenAI models; standard/hd map to medium/high; xhigh/max are GPT Image 2.5 only)')
+    new Option('-q, --quality <quality>', 'Image quality (OpenAI models; standard/hd map to medium/high; xhigh/max are GPT Image 2.5 and 2.6 only)')
       .choices(['standard', 'hd', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
       .default(DEFAULT_OPTIONS.quality)
   )
@@ -465,7 +465,7 @@ ${chalk.bold('Examples:')}
   $ generate -m kling-3-pro "a dancer spins" --ref start=./pose.png --max-cost 0.50
 
   ${chalk.dim('# Unpaid (plan-billed) path only; fails rather than spending money')}
-  $ generate -m gpt-image-2 "a lighthouse at dusk" --billing plan
+  $ generate -m codex-image "a lighthouse at dusk" --billing plan
 
   ${chalk.dim('# Cheap draft first, then the final on the same settings')}
   $ generate -m omni "waves at night" --draft
